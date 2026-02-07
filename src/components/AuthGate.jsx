@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
 import { getUserSession, getPreferences } from '../utils/session'
+import LoginPage from '../pages/LoginPage'
+import SignupPage from '../pages/SignupPage'
+import UsernameSetup from '../pages/UsernameSetup'
 
 /**
  * AuthGate component handles routing based on session state:
@@ -43,6 +46,18 @@ export default function AuthGate({
     }, [])
 
     // Handle explicit routes first
+    if (currentRoute === '#/login') {
+        return <LoginPage />
+    }
+
+    if (currentRoute === '#/signup') {
+        return <SignupPage />
+    }
+
+    if (currentRoute === '#/username-setup') {
+        return <UsernameSetup />
+    }
+
     if (currentRoute === '#/setup') {
         return <SetupComponent />
     }
