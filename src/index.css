@@ -1,0 +1,9 @@
+/* Minimal reset */
+body {
+  font-family: sans-serif;
+  padding: 20px;
+}
+.app-container {
+  max-width: 600px;
+  margin: 0 auto;
+}
