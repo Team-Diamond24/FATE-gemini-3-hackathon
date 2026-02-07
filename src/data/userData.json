@@ -1,0 +1,379 @@
+{
+  "default": {
+    "month": 2,
+    "balance": 7000,
+    "savings": 500,
+    "insuranceOpted": false,
+    "riskScore": 49,
+    "history": [
+      {
+        "type": "choice",
+        "month": 1,
+        "balanceChange": -750,
+        "savingsChange": 0,
+        "riskChange": 5,
+        "description": "",
+        "timestamp": 1770483570255
+      },
+      {
+        "type": "choice",
+        "month": 1,
+        "balanceChange": -2800,
+        "savingsChange": 0,
+        "riskChange": -15,
+        "description": "",
+        "timestamp": 1770483570301
+      },
+      {
+        "type": "choice",
+        "month": 1,
+        "balanceChange": -1800,
+        "savingsChange": 0,
+        "riskChange": -5,
+        "description": "",
+        "timestamp": 1770483570326
+      },
+      {
+        "type": "choice",
+        "month": 1,
+        "balanceChange": -1200,
+        "savingsChange": 0,
+        "riskChange": 2,
+        "description": "",
+        "timestamp": 1770483570380
+      },
+      {
+        "type": "choice",
+        "month": 1,
+        "balanceChange": 3000,
+        "savingsChange": 0,
+        "riskChange": 12,
+        "description": "",
+        "timestamp": 1770483570392
+      },
+      {
+        "month": 1,
+        "balance": 3000,
+        "savings": 500,
+        "riskScore": 49
+      }
+    ],
+    "currentBatch": {
+      "month": 2,
+      "scenarios": [
+        {
+          "id": "scenario_2_1",
+          "situation": "A close friend is celebrating their birthday and the group is planning a dinner at a popular restaurant in the city.",
+          "choices": [
+            {
+              "id": "c1",
+              "label": "Join the group and pay for your share of the meal",
+              "balanceChange": -600,
+              "riskChange": 5
+            },
+            {
+              "id": "c2",
+              "label": "Suggest a more affordable local cafe instead",
+              "balanceChange": -250,
+              "riskChange": 0
+            },
+            {
+              "label": "Join student welfare scheme",
+              "balanceChange": -500,
+              "riskChange": 0,
+              "isInsurance": true,
+              "id": "choice_insurance_1770483598539"
+            }
+          ]
+        },
+        {
+          "id": "scenario_2_2",
+          "situation": "Your laptop charger suddenly stops working a week before your major end-semester project submission.",
+          "choices": [
+            {
+              "id": "c1",
+              "label": "Buy an original replacement from the authorized store",
+              "balanceChange": -2200,
+              "riskChange": -15
+            },
+            {
+              "id": "c2",
+              "label": "Buy a cheaper unbranded charger from a local market",
+              "balanceChange": -750,
+              "riskChange": 15
+            },
+            {
+              "id": "c3",
+              "label": "Borrow a roommate's charger only when they are not using it",
+              "balanceChange": 0,
+              "riskChange": 20
+            }
+          ]
+        },
+        {
+          "id": "scenario_2_3",
+          "situation": "A junior from your department asks you to provide private tutoring for a difficult subject over the weekends.",
+          "choices": [
+            {
+              "id": "c1",
+              "label": "Agree to tutor for a fixed monthly fee",
+              "balanceChange": 1500,
+              "riskChange": 10
+            },
+            {
+              "id": "c2",
+              "label": "Provide a one-time crash course for a small fee",
+              "balanceChange": 500,
+              "riskChange": 5
+            },
+            {
+              "id": "c3",
+              "label": "Decline the offer to focus on your own studies",
+              "balanceChange": 0,
+              "riskChange": -5
+            }
+          ]
+        },
+        {
+          "id": "scenario_2_4",
+          "situation": "Your monthly mobile data plan is expiring and you need a reliable connection for your online assignments.",
+          "choices": [
+            {
+              "id": "c1",
+              "label": "Renew with a 3-month long-term plan for better value",
+              "balanceChange": -719,
+              "riskChange": -10
+            },
+            {
+              "id": "c2",
+              "label": "Renew with the standard 1-month plan",
+              "balanceChange": -299,
+              "riskChange": 0
+            },
+            {
+              "id": "c3",
+              "label": "Do not renew and rely on the campus library Wi-Fi",
+              "balanceChange": 0,
+              "riskChange": 15
+            }
+          ]
+        },
+        {
+          "id": "scenario_2_5",
+          "situation": "You are running late for an early morning internal exam and the public bus is delayed.",
+          "choices": [
+            {
+              "id": "c1",
+              "label": "Book a private auto-rickshaw to reach the hall on time",
+              "balanceChange": -180,
+              "riskChange": -10
+            },
+            {
+              "id": "c2",
+              "label": "Wait for the bus and risk arriving late for the paper",
+              "balanceChange": -15,
+              "riskChange": 15
+            },
+            {
+              "id": "c3",
+              "label": "Ask a stranger for a lift on their bike to the campus",
+              "balanceChange": 0,
+              "riskChange": 20
+            }
+          ]
+        }
+      ],
+      "currentIndex": 0
+    },
+    "lastUpdated": "2026-02-07T16:59:58.540Z"
+  },
+  "test_user_1770483727197": {
+    "userId": "test_user_1770483727197",
+    "month": 2,
+    "balance": 5401,
+    "savings": 500,
+    "insuranceOpted": false,
+    "riskScore": 33,
+    "history": [
+      {
+        "type": "choice",
+        "month": 1,
+        "balanceChange": -600,
+        "savingsChange": 0,
+        "riskChange": 5,
+        "description": "",
+        "timestamp": 1770483743973
+      },
+      {
+        "type": "choice",
+        "month": 1,
+        "balanceChange": -950,
+        "savingsChange": 0,
+        "riskChange": -10,
+        "description": "",
+        "timestamp": 1770483743981
+      },
+      {
+        "type": "choice",
+        "month": 1,
+        "balanceChange": -2500,
+        "savingsChange": 0,
+        "riskChange": -15,
+        "description": "",
+        "timestamp": 1770483743989
+      },
+      {
+        "type": "choice",
+        "month": 1,
+        "balanceChange": 1200,
+        "savingsChange": 0,
+        "riskChange": 8,
+        "description": "",
+        "timestamp": 1770483744000
+      },
+      {
+        "type": "choice",
+        "month": 1,
+        "balanceChange": -749,
+        "savingsChange": 0,
+        "riskChange": -5,
+        "description": "",
+        "timestamp": 1770483744019
+      },
+      {
+        "month": 1,
+        "balance": 1401,
+        "savings": 500,
+        "riskScore": 33
+      }
+    ],
+    "currentBatch": {
+      "month": 2,
+      "scenarios": [
+        {
+          "id": "scenario_1",
+          "situation": "Your roommates are planning a weekend trip to a nearby hill station and want you to join them for the two-day getaway.",
+          "choices": [
+            {
+              "id": "c1",
+              "label": "Join the trip and split all costs for travel and hotel",
+              "balanceChange": -2500,
+              "riskChange": 10
+            },
+            {
+              "id": "c2",
+              "label": "Go on the trip but stay in a budget hostel and eat local street food",
+              "balanceChange": -1200,
+              "riskChange": 5
+            },
+            {
+              "label": "Subscribe to health emergency fund",
+              "balanceChange": -500,
+              "riskChange": -2,
+              "isInsurance": true,
+              "id": "choice_insurance_1770483762241"
+            }
+          ]
+        },
+        {
+          "id": "scenario_2",
+          "situation": "Your smartphone falls and the screen cracks badly. It is difficult to read texts or use UPI for payments.",
+          "choices": [
+            {
+              "id": "c1",
+              "label": "Get it repaired at the official service center with a warranty",
+              "balanceChange": -3800,
+              "riskChange": -10
+            },
+            {
+              "id": "c2",
+              "label": "Get a cheap screen replacement from a local roadside shop",
+              "balanceChange": -1400,
+              "riskChange": 15
+            },
+            {
+              "id": "c3",
+              "label": "Apply a thick screen guard and try to use it as it is",
+              "balanceChange": -150,
+              "riskChange": 10
+            }
+          ]
+        },
+        {
+          "id": "scenario_3",
+          "situation": "A premium online certification course relevant to your major is available at a massive 80 percent discount for this week only.",
+          "choices": [
+            {
+              "id": "c1",
+              "label": "Buy the course to improve your future job prospects",
+              "balanceChange": -999,
+              "riskChange": -15
+            },
+            {
+              "id": "c2",
+              "label": "Share the login and cost with a classmate to save money",
+              "balanceChange": -500,
+              "riskChange": 5
+            },
+            {
+              "id": "c3",
+              "label": "Skip the course and look for free resources on YouTube later",
+              "balanceChange": 0,
+              "riskChange": 2
+            }
+          ]
+        },
+        {
+          "id": "scenario_4",
+          "situation": "The college hostel mess food has been poor quality recently, and you are tempted to order food from delivery apps daily.",
+          "choices": [
+            {
+              "id": "c1",
+              "label": "Buy a weekly subscription from a local home-cooked tiffin service",
+              "balanceChange": -1000,
+              "riskChange": 0
+            },
+            {
+              "id": "c2",
+              "label": "Order fast food via delivery apps whenever you feel hungry",
+              "balanceChange": -1800,
+              "riskChange": 8
+            },
+            {
+              "id": "c3",
+              "label": "Keep eating the mess food and supplement it with basic biscuits and fruit",
+              "balanceChange": -300,
+              "riskChange": -2
+            }
+          ]
+        },
+        {
+          "id": "scenario_5",
+          "situation": "A senior offers you a paid opportunity to help with data entry for their research project for ten hours this month.",
+          "choices": [
+            {
+              "id": "c1",
+              "label": "Accept the work and complete it over two weekends",
+              "balanceChange": 1500,
+              "riskChange": 5
+            },
+            {
+              "id": "c2",
+              "label": "Decline because you have mid-term exams approaching",
+              "balanceChange": 0,
+              "riskChange": -10
+            },
+            {
+              "id": "c3",
+              "label": "Ask to do only half the work for half the pay",
+              "balanceChange": 750,
+              "riskChange": -2
+            }
+          ]
+        }
+      ],
+      "currentIndex": 0
+    },
+    "lastUpdated": "2026-02-07T17:02:42.244Z"
+  }
+}
