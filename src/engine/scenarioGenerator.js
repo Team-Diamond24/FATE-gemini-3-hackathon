@@ -3,7 +3,7 @@
  * Generates financial life scenarios for Indian student simulator
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 
 // ============================================
 // SYSTEM PROMPT
@@ -189,41 +189,96 @@ function getFallbackScenario() {
 }
 
 // ============================================
+// INSURANCE MECHANIC
+// ============================================
+
+const INSURANCE_OPTIONS = [
+  {
+    label: "Pay small fee for campus security fund",
+    balanceChange: -500,
+    riskChange: -5,
+    isInsurance: true
+  },
+  {
+    label: "Join student welfare scheme",
+    balanceChange: -500,
+    riskChange: 0,
+    isInsurance: true
+  },
+  {
+    label: "Subscribe to health emergency fund",
+    balanceChange: -500,
+    riskChange: -2,
+    isInsurance: true
+  }
+];
+
+/**
+ * Injects insurance option into scenario if conditions met
+ * @param {Object} scenario - The generated scenario
+ * @param {Object} gameState - Current game state
+ * @returns {Object} - Modified scenario
+ */
+function injectInsuranceChoice(scenario, gameState) {
+  // Only offer in month 1 & 2, if not already opted
+  if (gameState.month <= 2 && !gameState.insuranceOpted) {
+    const insuranceOption = INSURANCE_OPTIONS[Math.floor(Math.random() * INSURANCE_OPTIONS.length)];
+    
+    // Replace the 3rd choice (index 2) with insurance option
+    if (scenario.choices && scenario.choices.length >= 3) {
+      scenario.choices[2] = {
+        ...insuranceOption,
+        id: `choice_insurance_${Date.now()}` // Unique ID
+      };
+    }
+  }
+  return scenario;
+}
+
+// ============================================
 // MAIN GENERATOR FUNCTION
 // ============================================
 
 /**
- * Generates a scenario using Gemini AI
+ * Generates a scenario using Gemini AI (via @google/genai SDK)
  * @param {Object} gameState - Current game state
  * @param {string} apiKey - Google Gemini API key
  * @returns {Promise<Object>} - Generated scenario
  */
 export async function generateScenario(gameState, apiKey) {
+  // Use provided key or fallback to environment variable (works in Vite and Node)
+  let envKey;
+  try {
+    // Try Vite env
+    if (import.meta && import.meta.env) {
+      envKey = import.meta.env.VITE_GEMINI_API_KEY;
+    }
+  } catch (e) {
+    // Ignore error if import.meta is not available
+  }
+  
+  // Fallback to process.env for Node.js (testing)
+  if (!envKey && typeof process !== 'undefined' && process.env) {
+    envKey = process.env.VITE_GEMINI_API_KEY;
+  }
+
+  const key = apiKey || envKey;
+
   // If no API key, return fallback
-  if (!apiKey) {
+  if (!key) {
     console.warn('No API key provided, using fallback scenario');
-    return getFallbackScenario();
+    return injectInsuranceChoice(getFallbackScenario(), gameState);
   }
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
+    // Initialize Google GenAI Client
+    const ai = new GoogleGenAI({ apiKey: key });
     
-    // Use gemini-2.5-flash model
-    const modelOptions = ['gemini-2.5-flash'];
-    let lastError = null;
-    
-    for (const modelName of modelOptions) {
-      try {
-        const model = genAI.getGenerativeModel({ 
-          model: modelName,
-          generationConfig: {
-            temperature: 0.8,
-            maxOutputTokens: 500,
-          }
-        });
+    // Use gemini-3-flash-preview model as requested
+    const modelName = 'gemini-3-flash-preview';
 
-        // Build context from game state
-        const context = `
+    // Build context from game state
+    const context = `
 Current game state:
 - Month: ${gameState.month}
 - Balance: ₹${gameState.balance}
@@ -232,46 +287,41 @@ Current game state:
 
 Generate a new financial scenario for this Indian college student.`;
 
-        // Create chat with system instruction
-        const chat = model.startChat({
-          history: [
-            {
-              role: 'user',
-              parts: [{ text: SYSTEM_PROMPT }]
-            },
-            {
-              role: 'model', 
-              parts: [{ text: 'Understood. I will generate realistic financial scenarios for Indian college students and return only valid JSON in the specified format.' }]
-            }
+    // Generate content
+    const result = await ai.models.generateContent({
+      model: modelName,
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: SYSTEM_PROMPT + "\n\n" + context }
           ]
-        });
-
-        // Generate scenario
-        const result = await chat.sendMessage(context);
-        const response = await result.response;
-        const text = response.text();
-
-        // Parse and validate
-        const scenario = parseGeminiResponse(text);
-        
-        if (scenario && validateScenario(scenario)) {
-          console.log(`✓ Using model: ${modelName}`);
-          return scenario;
         }
-      } catch (modelError) {
-        lastError = modelError;
-        console.warn(`Model ${modelName} failed, trying next...`);
-        continue;
-      }
+      ]
+    });
+
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!text) {
+      console.warn(`Invalid response format from ${modelName}`);
+      return injectInsuranceChoice(getFallbackScenario(), gameState);
     }
+
+    // Parse and validate
+    const scenario = parseGeminiResponse(text);
     
-    // All models failed
-    console.error('All Gemini models failed:', lastError?.message);
-    return getFallbackScenario();
+    if (scenario && validateScenario(scenario)) {
+      console.log(`✓ Using model: ${modelName}`);
+      return injectInsuranceChoice(scenario, gameState);
+    } else {
+      console.warn(`Invalid scenario format from ${modelName}`);
+      return injectInsuranceChoice(getFallbackScenario(), gameState);
+    }
 
   } catch (error) {
-    console.error('Gemini initialization error:', error.message);
-    return getFallbackScenario();
+    console.error('Gemini API error:', JSON.stringify(error, null, 2));
+    // If usage limit or other error, fallback
+    return injectInsuranceChoice(getFallbackScenario(), gameState);
   }
 }
 
