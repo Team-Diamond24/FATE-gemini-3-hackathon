@@ -1,4 +1,16 @@
+import { useState, useEffect } from 'react'
+import ProfileDropdown from './ProfileDropdown'
+
 export default function LandingPage({ onStart }) {
+    const [isLoggedIn, setIsLoggedIn] = useState(false)
+
+    useEffect(() => {
+        // Check if user is logged in (has userId and username set)
+        const userId = localStorage.getItem('fate_userId')
+        const usernameSet = localStorage.getItem('fate_usernameSet')
+        setIsLoggedIn(!!userId && !!usernameSet)
+    }, [])
+
     return (
         <div className="min-h-screen bg-black text-white">
             {/* Navigation */}
@@ -22,14 +34,25 @@ export default function LandingPage({ onStart }) {
                     </a>
                 </div>
 
-                <div className="flex items-center gap-4">
-                    <button className="font-mono text-xs text-fate-text hover:text-white transition-colors">
-                        Log in
-                    </button>
-                    <button className="bg-fate-orange text-black font-bold px-4 py-2 rounded text-sm hover:bg-fate-orange-light transition-colors">
-                        JOIN
-                    </button>
-                </div>
+                {/* Auth Section - Show profile dropdown if logged in, otherwise login/signup buttons */}
+                {isLoggedIn ? (
+                    <ProfileDropdown />
+                ) : (
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => window.location.hash = '#/login'}
+                            className="font-mono text-xs text-fate-text hover:text-white transition-colors"
+                        >
+                            Log in
+                        </button>
+                        <button
+                            onClick={() => window.location.hash = '#/signup'}
+                            className="bg-fate-orange text-black font-bold px-4 py-2 rounded text-sm hover:bg-fate-orange-light transition-colors"
+                        >
+                            JOIN
+                        </button>
+                    </div>
+                )}
             </nav>
 
             {/* Hero Section */}
