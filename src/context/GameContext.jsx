@@ -1,82 +1,96 @@
-import { createContext, useContext, useReducer } from 'react'
+import { createContext, useContext, useReducer, useEffect } from 'react'
+import { getUserSession, saveGameState, getGameState } from '../utils/session'
 
-const GameContext = createContext(null)
-const GameDispatchContext = createContext(null)
-
+// Initial state
 const initialState = {
     month: 1,
-    balance: 2400,
-    savings: 0,
-    insuranceOpted: false,
-    riskScore: 25,
-    history: [
-        {
-            month: 1,
-            title: 'The Genesis',
-            description: 'You started your journey with a dream, a moderate debt, and the heavy weight of expectations.',
-            type: 'neutral'
-        }
-    ]
+    balance: 24000,
+    history: [],
+    riskExposure: 0,
+    stressLevel: 30,
+    fortuneIndex: 60,
+    isLoaded: false
 }
 
+// Reducer
 function gameReducer(state, action) {
     switch (action.type) {
-        case 'SELECT_CHOICE': {
-            const { choice } = action.payload
-            const newBalance = state.balance + (choice.balanceChange || 0)
-            const newSavings = state.savings + (choice.savingsChange || 0)
-            const newRiskScore = Math.max(0, Math.min(100, state.riskScore + (choice.riskChange || 0)))
+        case 'HYDRATE':
+            return { ...action.payload, isLoaded: true }
 
+        case 'PROCESS_CHOICE_RESULT':
             return {
                 ...state,
-                balance: newBalance,
-                savings: Math.max(0, newSavings),
-                riskScore: newRiskScore,
+                ...action.payload.updatedState,
                 history: [
                     ...state.history,
                     {
+                        timestamp: new Date().toISOString(),
                         month: state.month,
-                        title: choice.label,
-                        description: `Balance: ${choice.balanceChange >= 0 ? '+' : ''}$${choice.balanceChange}`,
-                        type: choice.balanceChange >= 0 ? 'positive' : 'negative'
+                        narrative: action.payload.narrative,
+                        reflection: action.payload.reflection,
+                        balanceChange: action.payload.updatedState.balance - state.balance
                     }
                 ]
             }
-        }
 
-        case 'NEXT_MONTH': {
+        case 'NEXT_MONTH':
             return {
                 ...state,
                 month: state.month + 1
             }
-        }
 
-        case 'SET_INSURANCE': {
+        case 'ADD_IMPACT':
             return {
                 ...state,
-                insuranceOpted: action.payload,
-                balance: action.payload ? state.balance - 100 : state.balance
+                balance: state.balance + action.payload.amount,
+                history: [
+                    ...state.history,
+                    {
+                        timestamp: new Date().toISOString(),
+                        month: state.month,
+                        amount: action.payload.amount,
+                        description: action.payload.description,
+                        icon: action.payload.icon
+                    }
+                ]
             }
-        }
 
-        case 'RESET': {
-            return initialState
-        }
-
-        case 'SET_STATE': {
-            return {
-                ...state,
-                ...action.payload
-            }
-        }
+        case 'RESET':
+            return { ...initialState, isLoaded: true }
 
         default:
             return state
     }
 }
 
+// Context
+const GameContext = createContext(null)
+const GameDispatchContext = createContext(null)
+
+// Provider
 export function GameProvider({ children }) {
     const [state, dispatch] = useReducer(gameReducer, initialState)
+
+    // Hydrate state from localStorage on mount
+    useEffect(() => {
+        const { userId } = getUserSession()
+        const savedState = getGameState(userId)
+
+        if (savedState) {
+            dispatch({ type: 'HYDRATE', payload: savedState })
+        } else {
+            dispatch({ type: 'HYDRATE', payload: initialState })
+        }
+    }, [])
+
+    // Persist state to localStorage on every change
+    useEffect(() => {
+        if (state.isLoaded) {
+            const { userId } = getUserSession()
+            saveGameState(userId, state)
+        }
+    }, [state])
 
     return (
         <GameContext.Provider value={state}>
@@ -87,6 +101,7 @@ export function GameProvider({ children }) {
     )
 }
 
+// Hooks
 export function useGameState() {
     const context = useContext(GameContext)
     if (context === null) {

@@ -15,7 +15,7 @@ export default function Header({ balance, month, isActive = true }) {
                 <div className="header-logo">
                     <div className="logo-icon">F</div>
                     <div className="logo-text">
-                        <span className="logo-title">ONE LIFE. MANY MONTHS.</span>
+                        <span className="logo-title">FATE. MANY MONTHS.</span>
                         <span className="logo-subtitle">Financial Literacy Simulator</span>
                     </div>
                 </div>
