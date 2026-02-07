@@ -203,8 +203,16 @@ const INSURANCE_OPTIONS = [
  * @returns {Object} - Modified scenario
  */
 function injectInsuranceChoice(scenario, gameState) {
-  // Only offer in month 1 & 2, if not already opted
-  if (gameState.month <= 2 && !gameState.insuranceOpted) {
+  // If already opted, don't offer again
+  if (gameState.insuranceOpted) return scenario;
+
+  const likelihood = gameState.modifiers?.insuranceLikelihood || 1.0;
+  
+  // Base probability: 100% in months 1-2, then lower base but scaled by likelihood
+  const baseProb = 0.4;
+  const effectiveProb = (gameState.month <= 2) ? 1.0 : baseProb * likelihood;
+
+  if (Math.random() <= effectiveProb) {
     const insuranceOption = INSURANCE_OPTIONS[Math.floor(Math.random() * INSURANCE_OPTIONS.length)];
     
     // Replace the 3rd choice (index 2) with insurance option
@@ -250,6 +258,28 @@ Tax: ₹{tax}
 Insurance Opted: {insurance}
 Events: {events}`;
 
+const DECISION_PROMPT = `You are a behavioral strategist for a financial simulation game for Indian college students.
+Your task is to generate exactly 3 short questions for the "Next Month's Plan" based on the player's performance this month.
+
+RULES:
+- Generate exactly 3 questions.
+- Each question must have exactly 2 choices: A and B.
+- Questions must be based on the provided month summary and data.
+- The choices should represent different behavioral approaches (e.g., proactive vs reactive, saving vs spending).
+- NO correct or incorrect answers.
+- NO quizzes.
+- NO scoring.
+- NO judgement, advice, or scolding.
+- Use simple, direct, conversational language.
+- Max 2 lines per question (including choices).
+- Return ONLY the questions text.
+
+INPUT DATA:
+Month: {month}
+Summary of this month: {summary}
+User's behavioral patterns: {patterns}
+Tax/Insurance status: {status}`;
+
 /**
  * Extracts relevant data for monthly analysis
  */
@@ -281,6 +311,49 @@ function extractMonthAnalysisData(gameState) {
     insurance: gameState.insuranceOpted ? "Opted In" : "Not Opted",
     events: events.length > 0 ? events.join(', ') : "No major events"
   };
+}
+
+/**
+ * Extracts behavioral patterns and context for next month's decisions
+ */
+function extractDecisionContextData(gameState, analysisText) {
+  const history = gameState.history || [];
+  const monthEntries = history.filter(entry => entry.month === gameState.month);
+  
+  // Risk trend
+  const riskChange = monthEntries
+    .filter(e => e.type === 'choice')
+    .reduce((sum, e) => sum + (e.riskChange || 0), 0);
+    
+  let patterns = [];
+  if (riskChange > 5) patterns.push("Willing to take on higher financial risks");
+  if (riskChange < -5) patterns.push("Highly cautious and risk-averse behavior");
+  
+  // Balance trend
+  const choices = monthEntries.filter(e => e.type === 'choice');
+  const heavySpending = choices.filter(c => c.balanceChange < -1000).length;
+  if (heavySpending > 0) patterns.push("Inclination towards high-value one-time purchases");
+  
+  const smallSpending = choices.filter(c => c.balanceChange < 0 && c.balanceChange > -500).length;
+  if (smallSpending >= 3) patterns.push("Frequent small expenditures");
+
+  return {
+    month: gameState.month,
+    summary: analysisText,
+    patterns: patterns.length > 0 ? patterns.join(', ') : "Moderate/Balanced approach",
+    status: `Tax deducted: ₹1000, Insurance: ${gameState.insuranceOpted ? 'Active' : 'Not active'}`
+  };
+}
+
+/**
+ * Builds context string for decision questions generation
+ */
+function buildDecisionContext(data) {
+  return DECISION_PROMPT
+    .replace('{month}', data.month)
+    .replace('{summary}', data.summary)
+    .replace('{patterns}', data.patterns)
+    .replace('{status}', data.status);
 }
 
 /**
@@ -319,7 +392,7 @@ function getFallbackReflection(gameState) {
  * @param {string} apiKey - Optional API key (uses env if not provided)
  * @returns {Promise<string>} - Generated analysis text
  */
-export async function generateReflection(gameState, apiKey) {
+async function generateReflection(gameState, apiKey) {
   // Use provided key or fallback to environment variable
   let envKey;
   try {
@@ -349,7 +422,7 @@ export async function generateReflection(gameState, apiKey) {
     const context = buildAnalysisContext(analysisData);
 
     const result = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-robotics-er-1.5-preview',
       contents: [
         {
           role: 'user',
@@ -370,6 +443,65 @@ export async function generateReflection(gameState, apiKey) {
   } catch (error) {
     console.error('Analysis generation error:', error.message);
     return getFallbackReflection(gameState);
+  }
+}
+
+/**
+ * Generates 3 behavioral questions for the next month using Gemini AI
+ * @param {Object} gameState - Current game state
+ * @param {string} analysisText - The financial analysis generated earlier
+ * @param {string} apiKey - Optional API key
+ * @returns {Promise<string>} - Generated questions text
+ */
+async function generateDecisionQuestions(gameState, analysisText, apiKey) {
+  // Use provided key or fallback to environment variable
+  let envKey;
+  try {
+    if (import.meta && import.meta.env) {
+      envKey = import.meta.env.VITE_GEMINI_API_KEY;
+    }
+  } catch (e) {}
+  
+  if (!envKey && typeof process !== 'undefined' && process.env) {
+    envKey = process.env.VITE_GEMINI_API_KEY;
+  }
+
+  const key = apiKey || envKey;
+
+  if (!key) {
+    console.warn('No API key provided for decision questions generation');
+    return "Next month, do you want to:\nA) Save more\nB) Spend more"; // Very basic fallback
+  }
+
+  try {
+    const ai = new GoogleGenAI({ apiKey: key });
+    
+    // Build context
+    const contextData = extractDecisionContextData(gameState, analysisText);
+    const context = buildDecisionContext(contextData);
+
+    const result = await ai.models.generateContent({
+      model: 'gemini-robotics-er-1.5-preview',
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: context }]
+        }
+      ]
+    });
+
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!text) {
+      console.warn('Invalid decision questions response from Gemini');
+      return "Next month, do you want to:\nA) Keep it steady\nB) Try new things";
+    }
+
+    return text.trim();
+
+  } catch (error) {
+    console.error('Decision questions generation error:', error.message);
+    return "Next month, do you want to:\nA) Be cautious\nB) Be adventurous";
   }
 }
 
@@ -435,7 +567,7 @@ OUTPUT FORMAT (strict JSON only):
  * @param {string} [apiKey] - Optional API key
  * @returns {Promise<Object>} - MonthlyScenarioBatch object
  */
-export async function generateMonthlyScenarios(gameState, apiKey) {
+async function generateMonthlyScenarios(gameState, apiKey) {
   // Use provided key or fallback to environment variable
   let envKey;
   try {
@@ -468,6 +600,13 @@ export async function generateMonthlyScenarios(gameState, apiKey) {
   try {
     const ai = new GoogleGenAI({ apiKey: key });
     
+    // Build behavioral context
+    const modifiers = gameState.modifiers || { riskSensitivity: 1.0, difficultyModifier: 1.0 };
+    let behaviorDesc = "Balanced behavioral approach.";
+    if (modifiers.riskSensitivity > 1.1) behaviorDesc = "Player is showing high risk tolerance.";
+    if (modifiers.riskSensitivity < 0.9) behaviorDesc = "Player is very risk-averse.";
+    if (modifiers.difficultyModifier > 1.1) behaviorDesc += " Scenarios should be more challenging with higher stakes.";
+
     // Build context
     const context = `
 Current game state:
@@ -475,11 +614,12 @@ Current game state:
 - Balance: ₹${gameState.balance}
 - Savings: ₹${gameState.savings}
 - Risk Score: ${gameState.riskScore}/100
+- Behavioral Profile: ${behaviorDesc}
 
-Generate 5 scenarios for Month ${gameState.month}.`;
+Generate 5 scenarios for Month ${gameState.month}. Based on the behavioral profile, adjust the difficulty and stakes of the scenarios slightly.`;
 
     const result = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-robotics-er-1.5-preview',
       contents: [
         {
           role: 'user',
@@ -524,4 +664,13 @@ Generate 5 scenarios for Month ${gameState.month}.`;
 }
 
 // Export for testing
-export { validateScenario, parseGeminiResponse, getFallbackScenario, FALLBACK_SCENARIOS, MONTHLY_BATCH_PROMPT };
+export { 
+  validateScenario, 
+  parseGeminiResponse, 
+  getFallbackScenario, 
+  FALLBACK_SCENARIOS, 
+  MONTHLY_BATCH_PROMPT,
+  generateReflection,
+  generateDecisionQuestions,
+  generateMonthlyScenarios
+};

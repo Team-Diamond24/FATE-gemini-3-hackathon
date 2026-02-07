@@ -1,6 +1,6 @@
 
 import { applyIncome, applyChoice, finalizeMonth, getCurrentScenario, advanceScenarioIndex, isMonthComplete } from './gameEngine.js';
-import { generateMonthlyScenarios, generateReflection } from './scenarioGenerator.js';
+import { generateMonthlyScenarios, generateReflection, generateDecisionQuestions } from './scenarioGenerator.js';
 import { saveUserData } from './persistence.js';
 
 /**
@@ -81,8 +81,9 @@ export async function handleChoice(gameState, choice, apiKey) {
     }
   }
   
-  // 3. Month End: Generate reflection based on full month history
+  // 3. Month End: Generate reflection and behavioral questions
   const reflection = await generateReflection(currentState, apiKey);
+  const nextMonthDecisions = await generateDecisionQuestions(currentState, reflection, apiKey);
   
   // 4. Finalize Month (save history)
   let finalState = finalizeMonth(currentState);
@@ -94,6 +95,7 @@ export async function handleChoice(gameState, choice, apiKey) {
   return {
     gameState: finalState,
     reflection,
+    nextMonthDecisions,
     isMonthEnd: true
   };
 }

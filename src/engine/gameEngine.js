@@ -24,6 +24,10 @@ const TAX_RATE = 0.20; // 20% flat tax
  * @property {Array} history - Array of past state snapshots
  * @property {MonthlyScenarioBatch|null} currentBatch - Current month's scenario batch
  * @property {string} userId - Unique identifier for the user
+ * @property {Object} modifiers - Behavioral modifiers influencing gameplay
+ * @property {number} modifiers.riskSensitivity - Multiplier for risk changes (default 1.0)
+ * @property {number} modifiers.insuranceLikelihood - Weight for insurance offering (default 1.0)
+ * @property {number} modifiers.difficultyModifier - Used during scenario generation (default 1.0)
  */
 
 /**
@@ -41,6 +45,11 @@ export function initializeGameState(userId = 'default_user') {
     riskScore: 50,
     history: [],
     currentBatch: null,
+    modifiers: {
+      riskSensitivity: 1.0,
+      insuranceLikelihood: 1.0,
+      difficultyModifier: 1.0,
+    }
   };
 }
 
@@ -236,4 +245,59 @@ export function advanceScenarioIndex(batch) {
 export function isMonthComplete(batch) {
   if (!batch || !batch.scenarios) return true;
   return batch.currentIndex >= batch.scenarios.length;
+}
+
+// ============================================
+// BEHAVIORAL LOGIC
+// ============================================
+
+/**
+ * Applies the impact of behavioral decisions to the game state modifiers
+ * @param {GameState} state - Current game state
+ * @param {Array<string>} answers - Array of answers ('A' or 'B') for decision questions
+ * @returns {GameState} - Updated game state with new modifiers
+ */
+export function applyBehavioralDecisions(state, answers) {
+  if (!answers || !Array.isArray(answers)) return state;
+
+  const newModifiers = { ...state.modifiers || {
+    riskSensitivity: 1.0,
+    insuranceLikelihood: 1.0,
+    difficultyModifier: 1.0
+  }};
+
+  // Example mappings based on standard question themes
+  // Question 1: Stability (A: Flexible, B: Locked)
+  if (answers[0] === 'B') {
+    newModifiers.riskSensitivity -= 0.05;
+    newModifiers.difficultyModifier -= 0.05;
+  } else if (answers[0] === 'A') {
+    newModifiers.riskSensitivity += 0.05;
+  }
+
+  // Question 2: Protection (A: Luck, B: Covered)
+  if (answers[1] === 'B') {
+    newModifiers.insuranceLikelihood += 0.1;
+  } else if (answers[1] === 'A') {
+    newModifiers.insuranceLikelihood -= 0.05;
+  }
+
+  // Question 3: Ambition (A: Steady, B: High Stakes)
+  if (answers[2] === 'B') {
+    newModifiers.difficultyModifier += 0.1;
+    newModifiers.riskSensitivity += 0.05;
+  } else if (answers[2] === 'A') {
+    newModifiers.difficultyModifier -= 0.05;
+    newModifiers.riskSensitivity -= 0.05;
+  }
+
+  // Clamp modifiers to reasonable ranges
+  newModifiers.riskSensitivity = Math.max(0.5, Math.min(2.0, newModifiers.riskSensitivity));
+  newModifiers.insuranceLikelihood = Math.max(0.1, Math.min(2.0, newModifiers.insuranceLikelihood));
+  newModifiers.difficultyModifier = Math.max(0.5, Math.min(2.0, newModifiers.difficultyModifier));
+
+  return {
+    ...state,
+    modifiers: newModifiers
+  };
 }
