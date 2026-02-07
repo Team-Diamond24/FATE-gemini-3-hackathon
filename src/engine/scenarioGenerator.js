@@ -325,5 +325,161 @@ Generate a new financial scenario for this Indian college student.`;
   }
 }
 
+// ============================================
+// MONTHLY REFLECTION GENERATOR
+// ============================================
+
+const REFLECTION_PROMPT = `You are a reflection generator for a financial life simulation game for Indian college students.
+
+Your task is to generate a brief, empathetic reflection on the player's month.
+
+RULES:
+- Generate 3 to 5 short lines
+- Use simple, conversational language
+- NO financial jargon or technical terms
+- NO judgement, scolding, or criticism
+- NO advice or recommendations
+- Focus on CONSEQUENCES and OBSERVATIONS, not prescriptions
+- Be empathetic and understanding
+- Acknowledge both positive and negative outcomes neutrally
+
+TONE:
+- Friendly and supportive
+- Observational, not preachy
+- Like a friend reflecting with you, not a teacher lecturing
+
+OUTPUT FORMAT:
+Return ONLY the reflection text, no JSON, no extra formatting.
+Each line should be a complete thought.
+Separate lines with newlines.`;
+
+/**
+ * Extracts relevant data from the last month
+ */
+function extractMonthData(gameState) {
+  const currentMonth = gameState.month;
+  const history = gameState.history || [];
+  
+  // Get entries from the current month
+  const monthEntries = history.filter(entry => entry.month === currentMonth);
+  
+  // Calculate changes
+  const balanceChange = monthEntries
+    .filter(e => e.type === 'choice' || e.type === 'income')
+    .reduce((sum, e) => sum + (e.balanceChange || 0), 0);
+    
+  const savingsChange = monthEntries
+    .filter(e => e.type === 'choice')
+    .reduce((sum, e) => sum + (e.savingsChange || 0), 0);
+  
+  // Get choice descriptions
+  const choices = monthEntries
+    .filter(e => e.type === 'choice' && e.description)
+    .map(e => e.description);
+
+  return {
+    month: currentMonth,
+    balanceChange,
+    savingsChange,
+    riskScore: gameState.riskScore,
+    currentBalance: gameState.balance,
+    currentSavings: gameState.savings,
+    choices
+  };
+}
+
+/**
+ * Builds context string for reflection generation
+ */
+function buildReflectionContext(monthData) {
+  return `Month ${monthData.month} Summary:
+
+Balance: ₹${monthData.currentBalance} (${monthData.balanceChange >= 0 ? '+' : ''}₹${monthData.balanceChange} this month)
+Savings: ₹${monthData.currentSavings} (${monthData.savingsChange >= 0 ? '+' : ''}₹${monthData.savingsChange} this month)
+Risk Score: ${monthData.riskScore}/100
+
+Decisions made this month:
+${monthData.choices.map((c, i) => `${i + 1}. ${c}`).join('\n')}
+
+Generate a brief reflection (3-5 lines) on this month.`;
+}
+
+/**
+ * Fallback reflection when API fails
+ */
+function getFallbackReflection(gameState) {
+  const reflections = [
+    "Another month passed. You made your choices.\nSome worked out, some didn't.\nThat's how it goes.",
+    
+    "This month had its ups and downs.\nYou're learning as you go.\nEvery choice teaches you something.",
+    
+    "Money came and went this month.\nYou handled what came your way.\nOn to the next one.",
+    
+    "You navigated through another month.\nThe balance shifted, as it does.\nKeep moving forward."
+  ];
+  
+  return reflections[Math.floor(Math.random() * reflections.length)];
+}
+
+/**
+ * Generates a monthly reflection using Gemini AI
+ * @param {Object} gameState - Current game state
+ * @param {string} apiKey - Optional API key (uses env if not provided)
+ * @returns {Promise<string>} - Generated reflection text
+ */
+export async function generateReflection(gameState, apiKey) {
+  // Use provided key or fallback to environment variable
+  let envKey;
+  try {
+    if (import.meta && import.meta.env) {
+      envKey = import.meta.env.VITE_GEMINI_API_KEY;
+    }
+  } catch (e) {
+    // Ignore
+  }
+  
+  if (!envKey && typeof process !== 'undefined' && process.env) {
+    envKey = process.env.VITE_GEMINI_API_KEY;
+  }
+
+  const key = apiKey || envKey;
+
+  if (!key) {
+    console.warn('No API key provided for reflection generation');
+    return getFallbackReflection(gameState);
+  }
+
+  try {
+    const ai = new GoogleGenAI({ apiKey: key });
+    
+    // Build context from game state
+    const monthData = extractMonthData(gameState);
+    const context = buildReflectionContext(monthData);
+
+    const result = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: REFLECTION_PROMPT + "\n\n" + context }]
+        }
+      ]
+    });
+
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!text) {
+      console.warn('Invalid reflection response from Gemini');
+      return getFallbackReflection(gameState);
+    }
+
+    return text.trim();
+
+  } catch (error) {
+    console.error('Reflection generation error:', error.message);
+    return getFallbackReflection(gameState);
+  }
+}
+
 // Export for testing
 export { validateScenario, parseGeminiResponse, getFallbackScenario, FALLBACK_SCENARIOS, SYSTEM_PROMPT };
