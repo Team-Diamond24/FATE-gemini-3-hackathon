@@ -87,6 +87,7 @@ export function applyIncome(state, income = DEFAULT_MONTHLY_INCOME) {
  * @property {number} [savingsChange=0] - Amount to add/subtract from savings (optional)
  * @property {number} riskChange - Amount to add/subtract from riskScore
  * @property {string} [description] - Optional description of the choice
+ * @property {boolean} [isInsurance] - Whether this choice triggers insurance mechanic
  */
 
 /**
@@ -96,7 +97,7 @@ export function applyIncome(state, income = DEFAULT_MONTHLY_INCOME) {
  * @returns {GameState} - Updated game state
  */
 export function applyChoice(state, choice) {
-  const { balanceChange, savingsChange = 0, riskChange, description = '' } = choice;
+  const { balanceChange, savingsChange = 0, riskChange, description = '', isInsurance = false } = choice;
 
   // Calculate new balance, prevent going below zero
   const newBalance = Math.max(0, state.balance + balanceChange);
@@ -106,6 +107,9 @@ export function applyChoice(state, choice) {
 
   // Calculate new risk score, clamp between 0 and 100
   const newRiskScore = Math.max(0, Math.min(100, state.riskScore + riskChange));
+
+  // Update insurance status if this choice is for insurance
+  const newInsuranceOpted = state.insuranceOpted || isInsurance;
 
   // Create history entry for this choice
   const historyEntry = {
@@ -123,6 +127,7 @@ export function applyChoice(state, choice) {
     balance: newBalance,
     savings: newSavings,
     riskScore: newRiskScore,
+    insuranceOpted: newInsuranceOpted,
     history: [...state.history, historyEntry],
   };
 }
