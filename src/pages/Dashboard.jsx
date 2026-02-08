@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Shield, User, Settings, Image, ChevronRight, Home, DollarSign, AlertTriangle } from 'lucide-react'
+import { Shield, User, Settings, Image, ChevronRight, Home, DollarSign, AlertTriangle, CheckCircle } from 'lucide-react'
 import { useGame } from '../context/GameContext'
 import { getUserSession } from '../utils/session'
+import { fetchMonthlyScenarios, fetchMonthlyReflection } from '../services/api'
 
 // Impact Log Item Component
 function ImpactLogItem({ log }) {
@@ -38,19 +39,148 @@ function ImpactLogItem({ log }) {
     )
 }
 
+// Summary Panel Component - Shown when month is complete
+function SummaryPanel({ reflection, isLoading, onProceed, isProceedLoading }) {
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex-1 flex flex-col justify-center p-8"
+        >
+            <div className="mb-6">
+                <div className="flex items-center gap-3 mb-4">
+                    <CheckCircle size={24} className="text-green-400" />
+                    <span className="font-mono text-lg text-green-400 tracking-wider">
+                        MONTH COMPLETE
+                    </span>
+                </div>
+            </div>
+
+            <div className="bg-fate-card border border-fate-gray/30 rounded-lg p-6 mb-8">
+                <span className="font-mono text-xs text-fate-text tracking-widest block mb-4">
+                    MONTHLY REFLECTION
+                </span>
+                {isLoading ? (
+                    <div className="flex items-center gap-3 text-fate-muted">
+                        <div className="w-4 h-4 border-2 border-fate-orange border-t-transparent rounded-full animate-spin" />
+                        <span className="font-mono text-sm">Generating reflection...</span>
+                    </div>
+                ) : (
+                    <p className="text-white leading-relaxed">
+                        {reflection || 'Your financial decisions this month have shaped your path. Review your choices and prepare for new challenges ahead.'}
+                    </p>
+                )}
+            </div>
+
+            <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={onProceed}
+                disabled={isProceedLoading}
+                className={`w-full bg-fate-orange text-black font-bold py-4 rounded font-mono tracking-wider transition-colors flex items-center justify-center gap-3
+                    ${isProceedLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-fate-orange-light'}`}
+            >
+                {isProceedLoading ? (
+                    <>
+                        <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                        PREPARING NEXT MONTH...
+                    </>
+                ) : (
+                    <>
+                        PROCEED TO NEXT MONTH
+                        <ChevronRight size={18} />
+                    </>
+                )}
+            </motion.button>
+        </motion.div>
+    )
+}
+
 // Main Dashboard Content
 function DashboardContent() {
-    const { state, applyChoice, advanceScenario, getCurrentScenario } = useGame()
+    const {
+        state,
+        applyChoice,
+        advanceScenario,
+        getCurrentScenario,
+        isMonthComplete,
+        applyIncome,
+        finalizeMonth,
+        startNewMonth,
+        setBatch,
+        updateInsurance
+    } = useGame()
+
     const [scenario, setScenario] = useState(null)
     const [isProcessing, setIsProcessing] = useState(false)
+    const [showSummary, setShowSummary] = useState(false)
+    const [reflection, setReflection] = useState('')
+    const [isLoadingReflection, setIsLoadingReflection] = useState(false)
+    const [isProceedLoading, setIsProceedLoading] = useState(false)
     const { userId } = getUserSession()
 
+    // Check if month is complete and load scenario
     useEffect(() => {
-        if (state.isLoaded && state.currentBatch) {
-            const current = getCurrentScenario()
-            setScenario(current)
+        if (state.isLoaded) {
+            // Check if month is complete
+            const monthComplete = isMonthComplete()
+
+            if (monthComplete) {
+                setShowSummary(true)
+                loadReflection()
+            } else if (state.currentBatch) {
+                const current = getCurrentScenario()
+                setScenario(current)
+                setShowSummary(false)
+            }
         }
     }, [state.isLoaded, state.month, state.currentBatch])
+
+    // Load monthly reflection
+    const loadReflection = async () => {
+        setIsLoadingReflection(true)
+        try {
+            const reflectionText = await fetchMonthlyReflection(state)
+            setReflection(reflectionText)
+        } catch (error) {
+            console.error('Failed to load reflection:', error)
+            setReflection('This month has been a journey of financial decisions. Your choices have impacted your balance and risk profile.')
+        } finally {
+            setIsLoadingReflection(false)
+        }
+    }
+
+    // Handle proceeding to next month
+    const handleProceedToNextMonth = async () => {
+        setIsProceedLoading(true)
+        try {
+            // Step 1: Apply income
+            applyIncome()
+
+            // Step 2: Finalize month (save to history)
+            finalizeMonth()
+
+            // Step 3: Fetch new scenarios
+            const newBatch = await fetchMonthlyScenarios(state)
+
+            // Step 4: Start new month with new batch
+            startNewMonth(newBatch)
+
+            // Reset UI state
+            setShowSummary(false)
+            setReflection('')
+
+            // Navigate to simulation
+            window.location.hash = '#/simulation'
+        } catch (error) {
+            console.error('Failed to proceed to next month:', error)
+            // Still proceed with defaults
+            startNewMonth(null)
+            setShowSummary(false)
+            window.location.hash = '#/simulation'
+        } finally {
+            setIsProceedLoading(false)
+        }
+    }
 
     const handleChoice = async (choice) => {
         setIsProcessing(true)
@@ -69,6 +199,19 @@ function DashboardContent() {
         advanceScenario()
 
         setIsProcessing(false)
+    }
+
+    const handleBuyInsurance = () => {
+        // Apply insurance choice - costs money but reduces risk
+        const insuranceChoice = {
+            balanceChange: -200,
+            riskChange: -10,
+            savingsChange: 0,
+            description: 'Purchased Insurance Coverage',
+            isInsurance: true
+        }
+        applyChoice(insuranceChoice)
+        updateInsurance(true)
     }
 
     const getRiskColor = (score) => {
@@ -161,7 +304,7 @@ function DashboardContent() {
                         </div>
                     </div>
 
-                    {/* Savings */}
+                    {/* Savings - Fixed to use engine default (500) */}
                     <div className="mb-6 p-4 bg-fate-card border border-fate-gray/30 rounded-lg">
                         <div className="flex items-center gap-2 mb-2">
                             <Home size={16} className="text-fate-text" />
@@ -169,17 +312,17 @@ function DashboardContent() {
                         </div>
                         <div className="flex justify-between items-end mb-3">
                             <span className="font-mono text-2xl font-bold text-fate-orange">
-                                ₹{(state.savings || 80000).toLocaleString()}
+                                ₹{(state.savings ?? 500).toLocaleString()}
                             </span>
                             <span className="font-mono text-sm text-fate-text">
-                                ₹{((state.savings || 80000) * 0.1).toLocaleString()}
+                                ₹{((state.savings ?? 500) * 0.1).toLocaleString()}
                             </span>
                         </div>
                         <div className="h-2 bg-fate-gray rounded-full overflow-hidden">
                             <motion.div
                                 className="h-full bg-fate-orange"
                                 initial={{ width: 0 }}
-                                animate={{ width: `${Math.min(100, ((state.savings || 80000) / 100000) * 100)}%` }}
+                                animate={{ width: `${Math.min(100, ((state.savings ?? 500) / 5000) * 100)}%` }}
                                 transition={{ duration: 0.5 }}
                             />
                         </div>
@@ -228,10 +371,19 @@ function DashboardContent() {
                             <span className={`font-mono text-xl font-bold ${state.insuranceOpted ? 'text-green-400' : 'text-fate-muted'}`}>
                                 {state.insuranceOpted ? 'ACTIVE' : 'INACTIVE'}
                             </span>
-                            <span className={`font-mono text-xs px-2 py-1 rounded ${state.insuranceOpted ? 'bg-green-400/20 text-green-400' : 'bg-fate-gray text-fate-muted'
-                                }`}>
-                                {state.insuranceOpted ? 'ACTIVE' : 'NONE'}
-                            </span>
+                            {state.insuranceOpted ? (
+                                <span className="font-mono text-xs px-2 py-1 rounded bg-green-400/20 text-green-400">
+                                    ACTIVE
+                                </span>
+                            ) : (
+                                <motion.button
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={handleBuyInsurance}
+                                    className="font-mono text-xs px-3 py-1.5 rounded bg-fate-orange text-black hover:bg-fate-orange-light transition-colors"
+                                >
+                                    BUY ₹200
+                                </motion.button>
+                            )}
                         </div>
                     </div>
 
@@ -248,7 +400,7 @@ function DashboardContent() {
                     </motion.button>
                 </div>
 
-                {/* CENTER COLUMN - Active Scenario */}
+                {/* CENTER COLUMN - Active Scenario or Summary */}
                 <div className="p-8 flex flex-col border-r border-fate-gray/30">
                     <div className="mb-4">
                         <span className="font-mono text-xs text-fate-text tracking-widest">
@@ -256,7 +408,14 @@ function DashboardContent() {
                         </span>
                     </div>
 
-                    {scenario && (
+                    {showSummary ? (
+                        <SummaryPanel
+                            reflection={reflection}
+                            isLoading={isLoadingReflection}
+                            onProceed={handleProceedToNextMonth}
+                            isProceedLoading={isProceedLoading}
+                        />
+                    ) : scenario ? (
                         <div className="flex-1 flex flex-col justify-center">
                             <p
                                 className="text-xl leading-relaxed mb-12 max-w-lg"
@@ -264,7 +423,7 @@ function DashboardContent() {
                             />
 
                             <div className="flex flex-wrap gap-4">
-                                {scenario.choices.map((choice, idx) => (
+                                {scenario.choices && scenario.choices.map((choice, idx) => (
                                     <motion.button
                                         key={choice.id}
                                         whileTap={{ scale: 0.95 }}
@@ -284,6 +443,14 @@ function DashboardContent() {
                                     </motion.button>
                                 ))}
                             </div>
+                        </div>
+                    ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center">
+                            <div className="text-fate-muted mb-4">
+                                <AlertTriangle size={48} className="mx-auto opacity-50" />
+                            </div>
+                            <p className="font-mono text-sm text-fate-text mb-2">No active scenario</p>
+                            <p className="font-mono text-xs text-fate-muted">Click "Continue Simulation" to start</p>
                         </div>
                     )}
                 </div>

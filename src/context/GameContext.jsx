@@ -1,5 +1,6 @@
-import { createContext, useContext, useReducer, useEffect } from 'react'
-import { getUserSession, saveGameState, getGameState } from '../utils/session'
+import { createContext, useContext, useReducer, useEffect, useState } from 'react'
+import { getUserSession } from '../utils/session'
+import { saveUserData, loadUserData } from '../engine/persistence'
 import {
     initializeGameState,
     applyChoice as engineApplyChoice,
@@ -95,7 +96,7 @@ function gameReducer(state, action) {
         }
 
         case 'UPDATE_INSURANCE': {
-            // Toggle insurance status
+            // Toggle or set insurance status
             return {
                 ...state,
                 insuranceOpted: action.payload ?? !state.insuranceOpted
@@ -161,36 +162,56 @@ const GameDispatchContext = createContext(null)
  */
 export function GameProvider({ children }) {
     const [state, dispatch] = useReducer(gameReducer, initialState)
+    const [isHydrating, setIsHydrating] = useState(true)
 
-    // Hydrate state from localStorage on mount
+    // Hydrate state from persistence on mount (async)
     useEffect(() => {
-        const { userId } = getUserSession()
-        const savedState = getGameState(userId)
+        async function hydrateState() {
+            try {
+                const { userId } = getUserSession()
+                const savedState = await loadUserData(userId)
 
-        if (savedState) {
-            // Ensure saved state has all required fields
-            const hydratedState = {
-                ...createInitialState(userId),
-                ...savedState,
-                isLoaded: true  // Ensure isLoaded is set
+                if (savedState) {
+                    // Ensure saved state has all required fields
+                    const hydratedState = {
+                        ...createInitialState(userId),
+                        ...savedState,
+                        isLoaded: true
+                    }
+                    console.log('Game State Hydrated from persistence:', hydratedState)
+                    dispatch({ type: 'HYDRATE', payload: hydratedState })
+                } else {
+                    // Initialize fresh state for this user
+                    const freshState = createInitialState(userId)
+                    console.log('Game State Initialized (fresh):', freshState)
+                    dispatch({ type: 'HYDRATE', payload: freshState })
+                }
+            } catch (error) {
+                console.error('Failed to hydrate game state:', error)
+                // Initialize with default state on error
+                const freshState = createInitialState()
+                dispatch({ type: 'HYDRATE', payload: freshState })
+            } finally {
+                setIsHydrating(false)
             }
-            console.log('Game State Hydrated from localStorage:', hydratedState)
-            dispatch({ type: 'HYDRATE', payload: hydratedState })
-        } else {
-            // Initialize fresh state for this user
-            const freshState = createInitialState(userId)
-            console.log('Game State Initialized (fresh):', freshState)
-            dispatch({ type: 'HYDRATE', payload: freshState })
         }
+        hydrateState()
     }, [])
 
-    // Persist state to localStorage on every change
+    // Persist state to persistence on every change (async)
     useEffect(() => {
-        if (state.isLoaded) {
-            const { userId } = getUserSession()
-            saveGameState(userId, state)
+        async function persistState() {
+            if (state.isLoaded && !isHydrating) {
+                try {
+                    const { userId } = getUserSession()
+                    await saveUserData(userId, state)
+                } catch (error) {
+                    console.error('Failed to persist game state:', error)
+                }
+            }
         }
-    }, [state])
+        persistState()
+    }, [state, isHydrating])
 
     return (
         <GameContext.Provider value={state}>
@@ -234,6 +255,7 @@ export function useGame() {
         startNewMonth: (batch) => dispatch({ type: 'START_NEW_MONTH', payload: { batch } }),
         setBatch: (batch) => dispatch({ type: 'SET_BATCH', payload: batch }),
         applyBehavioralDecisions: (answers) => dispatch({ type: 'APPLY_BEHAVIORAL_DECISIONS', payload: answers }),
+        updateInsurance: (opted) => dispatch({ type: 'UPDATE_INSURANCE', payload: opted }),
         reset: () => dispatch({ type: 'RESET' }),
         // Getters
         getCurrentScenario: () => getCurrentScenario(state.currentBatch),
