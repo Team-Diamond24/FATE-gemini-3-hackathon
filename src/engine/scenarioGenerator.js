@@ -269,19 +269,30 @@ Number of decisions: {numChoices}`;
 const DECISION_PROMPT = `You are a behavioral strategist for a financial simulation game for Indian college students.
 Your task is to generate exactly 3 short questions for the "Next Month's Plan" based on the player's ACTUAL performance and choices this month.
 
+CRITICAL FORMAT REQUIREMENT:
+Each question MUST follow this EXACT format:
+1. [Question text]?
+A) [First option - brief, 5-8 words max]
+B) [Second option - brief, 5-8 words max]
+
+EXAMPLE:
+1. How will you approach spending next month?
+A) Continue being cautious with expenses
+B) Allow some flexibility in budget
+
 RULES:
 - Generate exactly 3 questions.
-- Each question must have exactly 2 choices: A and B.
+- Each question MUST have the format shown above with A) and B) options on separate lines.
 - Questions must be based on the provided month summary, choices made, and current financial state.
 - The choices should represent different behavioral approaches (e.g., proactive vs reactive, saving vs spending).
 - Reference specific patterns from their choices when relevant.
+- Keep options SHORT - maximum 8 words each.
 - NO correct or incorrect answers.
 - NO quizzes.
 - NO scoring.
 - NO judgement, advice, or scolding.
 - Use simple, direct, conversational language.
-- Max 2 lines per question (including choices).
-- Return ONLY the questions text.
+- Return ONLY the questions in the exact format specified.
 
 INPUT DATA:
 Month: {month}

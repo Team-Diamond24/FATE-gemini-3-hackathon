@@ -4,6 +4,9 @@ import { Shield, User, Settings, Image, ChevronRight, Home, DollarSign, AlertTri
 import { useGame } from '../context/GameContext'
 import { getUserSession } from '../utils/session'
 import { fetchMonthlyScenarios, fetchMonthlyReflection, fetchDecisionQuestions } from '../services/api'
+import DataManager from '../components/DataManager'
+
+// Adds a "VIEW DATA" button
 
 // Impact Log Item Component
 function ImpactLogItem({ log }) {
@@ -41,114 +44,160 @@ function ImpactLogItem({ log }) {
 
 // Summary Panel Component - Shown when month is complete
 function SummaryPanel({ reflection, decisionQuestions, isLoading, onProceed, isProceedLoading, selectedAnswers, onAnswerSelect, currentMonth }) {
-    // Parse decision questions (simple format: "1. Question?\nA) Option\nB) Option")
+    // Parse decision questions - improved parser
     const parseQuestions = (text) => {
         if (!text) return []
-        const lines = text.split('\n').filter(line => line.trim())
-        const questions = []
-        let currentQuestion = null
         
-        for (const line of lines) {
+        const questions = []
+        const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+        
+        let i = 0
+        while (i < lines.length) {
+            const line = lines[i]
+            
+            // Check if this is a question line (starts with number)
             if (/^\d+\./.test(line)) {
-                if (currentQuestion) questions.push(currentQuestion)
-                currentQuestion = { question: line, choices: [] }
-            } else if (/^[AB]\)/.test(line) && currentQuestion) {
-                currentQuestion.choices.push(line)
+                const question = { question: line, choices: [] }
+                i++
+                
+                // Look for A) and B) options
+                while (i < lines.length && /^[AB]\)/.test(lines[i])) {
+                    question.choices.push(lines[i])
+                    i++
+                }
+                
+                // Only add if we have both choices
+                if (question.choices.length === 2) {
+                    questions.push(question)
+                }
+            } else {
+                i++
             }
         }
-        if (currentQuestion) questions.push(currentQuestion)
+        
         return questions
     }
 
     const questions = parseQuestions(decisionQuestions)
 
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex-1 flex flex-col justify-center p-8"
-        >
-            <div className="mb-6">
-                <div className="flex items-center gap-3 mb-4">
-                    <CheckCircle size={24} className="text-green-400" />
-                    <span className="font-mono text-lg text-green-400 tracking-wider">
-                        MONTH {currentMonth} COMPLETE
-                    </span>
+        <div className="p-8 max-w-4xl mx-auto">
+            {/* Month Complete Badge */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-3 mb-8"
+            >
+                <CheckCircle size={32} className="text-green-400" />
+                <div>
+                    <div className="font-heading text-2xl font-bold text-white">
+                        Month {currentMonth} Complete
+                    </div>
+                    <div className="font-mono text-xs text-fate-text">
+                        Review your performance and plan ahead
+                    </div>
                 </div>
-            </div>
+            </motion.div>
 
             {/* Monthly Reflection */}
-            <div className="bg-fate-card border border-fate-gray/30 rounded-lg p-6 mb-6">
-                <span className="font-mono text-xs text-fate-text tracking-widest block mb-4">
-                    MONTHLY ANALYSIS
-                </span>
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="bg-fate-card border border-fate-gray/30 rounded-xl p-6 mb-6"
+            >
+                <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 bg-fate-orange/20 rounded flex items-center justify-center">
+                        <span className="text-fate-orange">📊</span>
+                    </div>
+                    <span className="font-mono text-sm text-fate-text tracking-widest">
+                        MONTHLY ANALYSIS
+                    </span>
+                </div>
+                
                 {isLoading ? (
-                    <div className="flex items-center gap-3 text-fate-muted">
-                        <div className="w-4 h-4 border-2 border-fate-orange border-t-transparent rounded-full animate-spin" />
-                        <span className="font-mono text-sm">Analyzing your choices...</span>
+                    <div className="flex items-center gap-3 text-fate-muted py-8">
+                        <div className="w-5 h-5 border-2 border-fate-orange border-t-transparent rounded-full animate-spin" />
+                        <span className="font-mono text-sm">Analyzing your financial decisions...</span>
                     </div>
                 ) : (
-                    <div className="text-white leading-relaxed whitespace-pre-line">
+                    <div className="text-white leading-relaxed whitespace-pre-line text-base">
                         {reflection || 'Your financial decisions this month have shaped your path.'}
                     </div>
                 )}
-            </div>
+            </motion.div>
 
             {/* Decision Questions */}
             {!isLoading && questions.length > 0 && (
-                <div className="bg-fate-card border border-fate-gray/30 rounded-lg p-6 mb-8">
-                    <span className="font-mono text-xs text-fate-text tracking-widest block mb-4">
-                        NEXT MONTH'S PLAN
-                    </span>
-                    <div className="space-y-4">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="bg-fate-card border border-fate-gray/30 rounded-xl p-6 mb-8"
+                >
+                    <div className="flex items-center gap-2 mb-6">
+                        <div className="w-8 h-8 bg-fate-orange/20 rounded flex items-center justify-center">
+                            <span className="text-fate-orange">💭</span>
+                        </div>
+                        <span className="font-mono text-sm text-fate-text tracking-widest">
+                            NEXT MONTH'S STRATEGY
+                        </span>
+                    </div>
+                    
+                    <div className="space-y-6">
                         {questions.map((q, idx) => (
-                            <div key={idx} className="border-b border-fate-gray/30 pb-4 last:border-0">
-                                <p className="text-white mb-3">{q.question}</p>
-                                <div className="flex gap-3">
+                            <div key={idx} className="pb-6 border-b border-fate-gray/30 last:border-0 last:pb-0">
+                                <p className="text-white mb-4 text-base leading-relaxed">{q.question}</p>
+                                <div className="grid grid-cols-2 gap-3">
                                     {q.choices.map((choice, cIdx) => {
                                         const answer = choice.startsWith('A)') ? 'A' : 'B'
                                         const isSelected = selectedAnswers[idx] === answer
                                         return (
-                                            <button
+                                            <motion.button
                                                 key={cIdx}
+                                                whileTap={{ scale: 0.98 }}
                                                 onClick={() => onAnswerSelect(idx, answer)}
-                                                className={`flex-1 px-4 py-2 rounded font-mono text-sm transition-colors ${
+                                                className={`px-4 py-3 rounded-lg font-mono text-sm transition-all ${
                                                     isSelected
-                                                        ? 'bg-fate-orange text-black'
-                                                        : 'bg-fate-gray text-white hover:bg-fate-gray/70'
+                                                        ? 'bg-fate-orange text-black shadow-lg'
+                                                        : 'bg-fate-gray text-white hover:bg-fate-gray/70 border border-fate-gray'
                                                 }`}
                                             >
                                                 {choice}
-                                            </button>
+                                            </motion.button>
                                         )
                                     })}
                                 </div>
                             </div>
                         ))}
                     </div>
-                </div>
+                </motion.div>
             )}
 
+            {/* Proceed Button */}
             <motion.button
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={onProceed}
                 disabled={isProceedLoading}
-                className={`w-full bg-fate-orange text-black font-bold py-4 rounded font-mono tracking-wider transition-colors flex items-center justify-center gap-3
+                className={`w-full bg-fate-orange text-black font-bold py-4 rounded-lg font-mono text-sm tracking-wider transition-all flex items-center justify-center gap-3 shadow-lg hover:shadow-xl
                     ${isProceedLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-fate-orange-light'}`}
             >
                 {isProceedLoading ? (
                     <>
-                        <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                        <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
                         PREPARING NEXT MONTH...
                     </>
                 ) : (
                     <>
                         START MONTH {currentMonth + 1}
-                        <ChevronRight size={18} />
+                        <ChevronRight size={20} />
                     </>
                 )}
             </motion.button>
-        </motion.div>
+        </div>
     )
 }
 
@@ -173,7 +222,7 @@ function DashboardContent() {
     const [isLoadingReflection, setIsLoadingReflection] = useState(false)
     const [isProceedLoading, setIsProceedLoading] = useState(false)
     const [selectedAnswers, setSelectedAnswers] = useState([])
-    const { userId } = getUserSession()
+    const { userId, displayId } = getUserSession()
 
     // Load reflection when dashboard loads (month just completed)
     useEffect(() => {
@@ -273,202 +322,195 @@ function DashboardContent() {
     }
 
     return (
-        <div className="min-h-screen bg-black text-white relative">
-            {/* Grid Overlay */}
-            <div
-                className="absolute inset-0 opacity-10 pointer-events-none"
-                style={{
-                    backgroundImage: `
-            linear-gradient(rgba(38, 38, 38, 0.5) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(38, 38, 38, 0.5) 1px, transparent 1px)
-          `,
-                    backgroundSize: '40px 40px'
-                }}
-            />
-
-            {/* Header */}
-            <header className="relative z-10 flex items-center justify-between p-4 border-b border-fate-gray/30">
+        <div className="h-full flex flex-col">
+            {/* Fixed Header */}
+            <header className="flex-none flex items-center justify-between px-6 py-4 border-b border-fate-gray/30 bg-black z-20">
                 <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-fate-orange rounded flex items-center justify-center font-bold text-black">
+                    <div className="w-10 h-10 bg-fate-orange rounded flex items-center justify-center font-bold text-black text-lg">
                         F
                     </div>
-                    <span className="font-mono text-sm tracking-wider text-fate-text">
-                        FATE // SIM_V2
-                    </span>
+                    <div>
+                        <span className="font-heading text-lg font-bold tracking-wider">FATE</span>
+                        <span className="font-mono text-xs text-fate-muted ml-2">// DASHBOARD</span>
+                    </div>
                 </div>
+                
                 <div className="flex items-center gap-3">
-                    <button className="w-10 h-10 border border-fate-gray rounded flex items-center justify-center hover:bg-fate-gray/50 transition-colors">
-                        <Image size={18} className="text-fate-text" />
+                    <div className="text-right mr-4">
+                        <div className="font-mono text-xs text-fate-text">MONTH</div>
+                        <div className="font-mono text-2xl font-bold text-fate-orange">{String(state.month).padStart(2, '0')}</div>
+                    </div>
+                    
+                    <DataManager />
+                    
+                    <button 
+                        onClick={() => window.location.hash = '#/'}
+                        className="px-4 py-2 border border-fate-gray rounded font-mono text-xs text-fate-text hover:bg-fate-gray/50 transition-colors"
+                    >
+                        HOME
                     </button>
+                    
                     <button className="w-10 h-10 border border-fate-gray rounded flex items-center justify-center hover:bg-fate-gray/50 transition-colors">
-                        <User size={18} className="text-fate-text" />
+                        <Settings size={18} className="text-fate-text" />
                     </button>
                 </div>
             </header>
 
-            {/* Main 3-Column Layout */}
-            <main className="relative z-10 grid grid-cols-1 lg:grid-cols-[320px_1fr_340px] gap-0 min-h-[calc(100vh-65px)]">
-
-                {/* LEFT COLUMN - Profile/Stats */}
-                <div className="border-r border-fate-gray/30 p-6 flex flex-col">
-                    {/* User Info */}
-                    <div className="flex items-center gap-3 mb-6 pb-4 border-b border-fate-gray/30">
-                        <div className="w-12 h-12 bg-fate-gray rounded-lg flex items-center justify-center">
-                            <User size={24} className="text-fate-text" />
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <span className="font-mono text-xs text-fate-text">USER //</span>
-                                <span className="font-mono text-sm text-white">{userId.toUpperCase()}</span>
-                                <Settings size={14} className="text-fate-text" />
-                            </div>
-                            <span className="font-mono text-xs text-fate-orange">STUDENT</span>
-                        </div>
-                    </div>
-
-                    {/* Profile Section */}
-                    <div className="mb-6">
-                        <span className="font-mono text-xs text-fate-text tracking-widest block mb-3">PROFILE</span>
-                        <div className="space-y-2">
-                            <div className="flex justify-between">
-                                <span className="font-mono text-xs text-fate-text">STATUS // STUDENT</span>
-                                <span className="font-mono text-2xl font-bold">{String(state.month).padStart(2, '0')}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="font-mono text-xs text-fate-text">RISK TYPE // BALANCED</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Savings - Fixed to use engine default (500) */}
-                    <div className="mb-6 p-4 bg-fate-card border border-fate-gray/30 rounded-lg">
-                        <div className="flex items-center gap-2 mb-2">
-                            <Home size={16} className="text-fate-text" />
-                            <span className="font-mono text-xs text-fate-text">SAVINGS</span>
-                        </div>
-                        <div className="flex justify-between items-end mb-3">
-                            <span className="font-mono text-2xl font-bold text-fate-orange">
-                                ₹{(state.savings ?? 500).toLocaleString()}
-                            </span>
-                            <span className="font-mono text-sm text-fate-text">
-                                ₹{((state.savings ?? 500) * 0.1).toLocaleString()}
-                            </span>
-                        </div>
-                        <div className="h-2 bg-fate-gray rounded-full overflow-hidden">
-                            <motion.div
-                                className="h-full bg-fate-orange"
-                                initial={{ width: 0 }}
-                                animate={{ width: `${Math.min(100, ((state.savings ?? 500) / 5000) * 100)}%` }}
-                                transition={{ duration: 0.5 }}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Current Month / Balance */}
-                    <div className="mb-6">
-                        <span className="font-mono text-xs text-fate-text tracking-widest block mb-2">CURRENT MONTH</span>
-                        <div className="flex items-center gap-3">
-                            <span className="font-mono text-4xl font-bold text-fate-orange">
-                                ₹{state.balance.toLocaleString()}
-                            </span>
-                            <span className="font-mono text-lg text-fate-text">.00</span>
-                            {state.insuranceOpted && (
-                                <Shield size={24} className="text-fate-orange ml-2" />
-                            )}
-                        </div>
-                        <span className="font-mono text-xs text-fate-text tracking-widest block mt-1">AVAILABLE CAPITAL</span>
-                    </div>
-
-                    {/* Risk Score */}
-                    <div className="mb-6">
-                        <span className="font-mono text-xs text-fate-text tracking-widest block mb-2">RISK SCORE</span>
-                        <div className="flex items-center gap-4">
-                            <span className={`font-mono text-3xl font-bold ${getRiskColor(state.riskScore)}`}>
-                                {state.riskScore}/100
-                            </span>
-                            <div className="flex-1">
-                                <div className="h-2 bg-fate-gray rounded-full overflow-hidden">
-                                    <motion.div
-                                        className={`h-full ${getRiskBgColor(state.riskScore)}`}
-                                        initial={{ width: 0 }}
-                                        animate={{ width: `${state.riskScore}%` }}
-                                        transition={{ duration: 0.5 }}
-                                    />
+            {/* Main Content - 3 Column Layout */}
+            <div className="flex-1 flex overflow-hidden">
+                {/* LEFT SIDEBAR - Fixed, Scrollable */}
+                <aside className="w-80 border-r border-fate-gray/30 bg-black flex flex-col overflow-hidden">
+                    <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+                        {/* User Profile Card */}
+                        <div className="bg-fate-card border border-fate-gray/30 rounded-lg p-4 mb-6">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-12 h-12 bg-fate-gray rounded-lg flex items-center justify-center">
+                                    <User size={24} className="text-fate-text" />
+                                </div>
+                                <div className="flex-1">
+                                    <div className="font-mono text-xs text-fate-text">USER ID</div>
+                                    <div className="font-mono text-sm text-white truncate">{displayId}</div>
                                 </div>
                             </div>
-                            <span className="font-mono text-xs text-fate-text">{state.riskScore}/100</span>
+                            <div className="flex items-center justify-between text-xs">
+                                <span className="font-mono text-fate-text">STATUS</span>
+                                <span className="font-mono text-fate-orange">STUDENT</span>
+                            </div>
                         </div>
-                    </div>
 
-                    {/* Insurance */}
-                    <div className="mb-6">
-                        <span className="font-mono text-xs text-fate-text tracking-widest block mb-2">INSURANCE</span>
-                        <div className="flex items-center justify-between">
-                            <span className={`font-mono text-xl font-bold ${state.insuranceOpted ? 'text-green-400' : 'text-fate-muted'}`}>
-                                {state.insuranceOpted ? 'ACTIVE' : 'INACTIVE'}
-                            </span>
-                            {state.insuranceOpted ? (
-                                <span className="font-mono text-xs px-2 py-1 rounded bg-green-400/20 text-green-400">
-                                    ACTIVE
+                        {/* Balance Card */}
+                        <div className="bg-gradient-to-br from-fate-orange/20 to-fate-card border border-fate-orange/30 rounded-lg p-4 mb-4">
+                            <div className="flex items-center gap-2 mb-2">
+                                <DollarSign size={16} className="text-fate-orange" />
+                                <span className="font-mono text-xs text-fate-text">BALANCE</span>
+                            </div>
+                            <div className="flex items-baseline gap-2">
+                                <span className="font-mono text-3xl font-bold text-white">
+                                    ₹{state.balance.toLocaleString()}
                                 </span>
-                            ) : (
+                                {state.insuranceOpted && (
+                                    <Shield size={20} className="text-fate-orange" />
+                                )}
+                            </div>
+                            <div className="font-mono text-xs text-fate-text mt-1">Available Capital</div>
+                        </div>
+
+                        {/* Stats Grid */}
+                        <div className="grid grid-cols-2 gap-3 mb-6">
+                            {/* Savings */}
+                            <div className="bg-fate-card border border-fate-gray/30 rounded-lg p-3">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Home size={14} className="text-fate-text" />
+                                    <span className="font-mono text-xs text-fate-text">SAVINGS</span>
+                                </div>
+                                <div className="font-mono text-xl font-bold text-white">
+                                    ₹{(state.savings ?? 500).toLocaleString()}
+                                </div>
+                            </div>
+
+                            {/* Risk Score */}
+                            <div className="bg-fate-card border border-fate-gray/30 rounded-lg p-3">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <AlertTriangle size={14} className="text-fate-text" />
+                                    <span className="font-mono text-xs text-fate-text">RISK</span>
+                                </div>
+                                <div className={`font-mono text-xl font-bold ${getRiskColor(state.riskScore)}`}>
+                                    {state.riskScore}/100
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Risk Progress Bar */}
+                        <div className="mb-6">
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="font-mono text-xs text-fate-text">RISK EXPOSURE</span>
+                                <span className="font-mono text-xs text-fate-text">{state.riskScore}%</span>
+                            </div>
+                            <div className="h-2 bg-fate-gray rounded-full overflow-hidden">
+                                <motion.div
+                                    className={`h-full ${getRiskBgColor(state.riskScore)}`}
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${state.riskScore}%` }}
+                                    transition={{ duration: 0.5 }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Insurance Section */}
+                        <div className="bg-fate-card border border-fate-gray/30 rounded-lg p-4 mb-6">
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                    <Shield size={16} className="text-fate-text" />
+                                    <span className="font-mono text-xs text-fate-text">INSURANCE</span>
+                                </div>
+                                <span className={`font-mono text-xs px-2 py-1 rounded ${
+                                    state.insuranceOpted 
+                                        ? 'bg-green-400/20 text-green-400' 
+                                        : 'bg-fate-gray text-fate-muted'
+                                }`}>
+                                    {state.insuranceOpted ? 'ACTIVE' : 'INACTIVE'}
+                                </span>
+                            </div>
+                            {!state.insuranceOpted && (
                                 <motion.button
                                     whileTap={{ scale: 0.95 }}
                                     onClick={handleBuyInsurance}
-                                    className="font-mono text-xs px-3 py-1.5 rounded bg-fate-orange text-black hover:bg-fate-orange-light transition-colors"
+                                    className="w-full bg-fate-orange text-black font-mono text-xs py-2 rounded hover:bg-fate-orange-light transition-colors"
                                 >
-                                    BUY ₹200
+                                    PURCHASE ₹200
                                 </motion.button>
                             )}
                         </div>
+
+                        {/* Quick Stats */}
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center py-2 border-b border-fate-gray/30">
+                                <span className="font-mono text-xs text-fate-text">Total Decisions</span>
+                                <span className="font-mono text-sm text-white">{state.history.length}</span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b border-fate-gray/30">
+                                <span className="font-mono text-xs text-fate-text">Net Worth</span>
+                                <span className="font-mono text-sm text-white">₹{(state.balance + state.savings).toLocaleString()}</span>
+                            </div>
+                        </div>
                     </div>
+                </aside>
 
-                    {/* Spacer */}
-                    <div className="flex-1" />
-
-                    {/* Continue Button - Goes back to simulation if mid-month */}
-                    <motion.button
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => window.location.hash = '#/'}
-                        className="w-full bg-fate-gray text-white font-bold py-4 rounded font-mono tracking-wider hover:bg-fate-gray/70 transition-colors"
-                    >
-                        BACK TO HOME
-                    </motion.button>
-                </div>
-
-                {/* CENTER COLUMN - Month Summary */}
-                <div className="p-8 flex flex-col border-r border-fate-gray/30">
-                    <div className="mb-4">
+                {/* CENTER CONTENT - Scrollable */}
+                <main className="flex-1 flex flex-col overflow-hidden bg-black">
+                    <div className="flex-none px-8 pt-6 pb-4 border-b border-fate-gray/30">
                         <span className="font-mono text-xs text-fate-text tracking-widest">
                             MONTH {String(state.month).padStart(2, '0')} SUMMARY
                         </span>
                     </div>
+                    
+                    <div className="flex-1 overflow-y-auto custom-scrollbar">
+                        <SummaryPanel
+                            reflection={reflection}
+                            decisionQuestions={decisionQuestions}
+                            isLoading={isLoadingReflection}
+                            onProceed={handleProceedToNextMonth}
+                            isProceedLoading={isProceedLoading}
+                            selectedAnswers={selectedAnswers}
+                            onAnswerSelect={(idx, answer) => {
+                                const newAnswers = [...selectedAnswers]
+                                newAnswers[idx] = answer
+                                setSelectedAnswers(newAnswers)
+                            }}
+                            currentMonth={state.month}
+                        />
+                    </div>
+                </main>
 
-                    <SummaryPanel
-                        reflection={reflection}
-                        decisionQuestions={decisionQuestions}
-                        isLoading={isLoadingReflection}
-                        onProceed={handleProceedToNextMonth}
-                        isProceedLoading={isProceedLoading}
-                        selectedAnswers={selectedAnswers}
-                        onAnswerSelect={(idx, answer) => {
-                            const newAnswers = [...selectedAnswers]
-                            newAnswers[idx] = answer
-                            setSelectedAnswers(newAnswers)
-                        }}
-                        currentMonth={state.month}
-                    />
-                </div>
-
-                {/* RIGHT COLUMN - Impact Logs */}
-                <div className="p-6 flex flex-col">
-                    <div className="flex items-center justify-between mb-4">
+                {/* RIGHT SIDEBAR - Fixed, Scrollable */}
+                <aside className="w-96 border-l border-fate-gray/30 bg-black flex flex-col overflow-hidden">
+                    <div className="flex-none px-6 py-4 border-b border-fate-gray/30">
                         <span className="font-mono text-xs text-fate-text tracking-widest">
-                            RECENT IMPACT LOGS
+                            IMPACT LOGS
                         </span>
                     </div>
-
-                    <div className="flex-1 overflow-y-auto">
+                    
+                    <div className="flex-1 overflow-y-auto px-6 py-4 custom-scrollbar">
                         {state.history.length === 0 ? (
                             <div className="text-center py-12 text-fate-muted">
                                 <AlertTriangle size={32} className="mx-auto mb-3 opacity-50" />
@@ -483,26 +525,26 @@ function DashboardContent() {
                             </div>
                         )}
                     </div>
-
-                    {/* View Archive Button */}
-                    <motion.button
-                        whileTap={{ scale: 0.98 }}
-                        className="mt-4 w-full bg-fate-orange text-black font-bold py-3 rounded font-mono text-sm tracking-wider flex items-center justify-center gap-2 hover:bg-fate-orange-light transition-colors"
-                    >
-                        VIEW FULL ARCHIVE
-                        <ChevronRight size={16} />
-                    </motion.button>
-                </div>
-            </main>
-
-            {/* Side Label */}
-            <div className="fixed left-2 top-1/2 -translate-y-1/2 -rotate-90 origin-left font-mono text-xs text-fate-muted tracking-widest hidden lg:block">
-                SIMULATION ACTIVE // 0.0.1
+                    
+                    <div className="flex-none p-4 border-t border-fate-gray/30">
+                        <motion.button
+                            whileTap={{ scale: 0.98 }}
+                            className="w-full bg-fate-orange text-black font-bold py-3 rounded font-mono text-sm tracking-wider flex items-center justify-center gap-2 hover:bg-fate-orange-light transition-colors"
+                        >
+                            VIEW ARCHIVE
+                            <ChevronRight size={16} />
+                        </motion.button>
+                    </div>
+                </aside>
             </div>
         </div>
     )
 }
 
 export default function Dashboard() {
-    return <DashboardContent />
+    return (
+        <div className="h-screen bg-black text-white flex flex-col overflow-hidden">
+            <DashboardContent />
+        </div>
+    )
 }

@@ -4,6 +4,9 @@ import { GameProvider } from './context/GameContext'
 import './index.css'
 import App from './App.jsx'
 
+// Import debug tools (available in browser console)
+import './utils/debugLocalStorage.js'
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <GameProvider>
