@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Shield, User, Settings, Image, ChevronRight, Home, DollarSign, AlertTriangle } from 'lucide-react'
-import { GameProvider, useGameState, useGameDispatch } from '../context/GameContext'
-import { processChoice, getScenario } from '../utils/processChoice'
+import { useGame } from '../context/GameContext'
 import { getUserSession } from '../utils/session'
 
 // Impact Log Item Component
@@ -41,25 +40,33 @@ function ImpactLogItem({ log }) {
 
 // Main Dashboard Content
 function DashboardContent() {
-    const state = useGameState()
-    const dispatch = useGameDispatch()
+    const { state, applyChoice, advanceScenario, getCurrentScenario } = useGame()
     const [scenario, setScenario] = useState(null)
     const [isProcessing, setIsProcessing] = useState(false)
     const { userId } = getUserSession()
 
     useEffect(() => {
-        if (state.isLoaded) {
-            setScenario(getScenario(state.month))
+        if (state.isLoaded && state.currentBatch) {
+            const current = getCurrentScenario()
+            setScenario(current)
         }
-    }, [state.isLoaded, state.month])
+    }, [state.isLoaded, state.month, state.currentBatch])
 
     const handleChoice = async (choice) => {
         setIsProcessing(true)
         await new Promise(resolve => setTimeout(resolve, 300))
 
-        const result = processChoice(choice.id, state)
-        dispatch({ type: 'PROCESS_CHOICE_RESULT', payload: result })
-        dispatch({ type: 'NEXT_MONTH' })
+        // Build Choice object expected by engine
+        const engineChoice = {
+            balanceChange: choice.balanceChange || 0,
+            riskChange: choice.riskChange || 0,
+            savingsChange: choice.savingsChange || 0,
+            description: choice.label || '',
+            isInsurance: choice.isInsurance || false
+        }
+
+        applyChoice(engineChoice)
+        advanceScenario()
 
         setIsProcessing(false)
     }
@@ -197,20 +204,20 @@ function DashboardContent() {
                     <div className="mb-6">
                         <span className="font-mono text-xs text-fate-text tracking-widest block mb-2">RISK SCORE</span>
                         <div className="flex items-center gap-4">
-                            <span className={`font-mono text-3xl font-bold ${getRiskColor(state.riskExposure)}`}>
-                                {state.riskExposure}/100
+                            <span className={`font-mono text-3xl font-bold ${getRiskColor(state.riskScore)}`}>
+                                {state.riskScore}/100
                             </span>
                             <div className="flex-1">
                                 <div className="h-2 bg-fate-gray rounded-full overflow-hidden">
                                     <motion.div
-                                        className={`h-full ${getRiskBgColor(state.riskExposure)}`}
+                                        className={`h-full ${getRiskBgColor(state.riskScore)}`}
                                         initial={{ width: 0 }}
-                                        animate={{ width: `${state.riskExposure}%` }}
+                                        animate={{ width: `${state.riskScore}%` }}
                                         transition={{ duration: 0.5 }}
                                     />
                                 </div>
                             </div>
-                            <span className="font-mono text-xs text-fate-text">{state.riskExposure}/100</span>
+                            <span className="font-mono text-xs text-fate-text">{state.riskScore}/100</span>
                         </div>
                     </div>
 
@@ -234,7 +241,7 @@ function DashboardContent() {
                     {/* Continue Button */}
                     <motion.button
                         whileTap={{ scale: 0.98 }}
-                        onClick={() => setScenario(getScenario(state.month))}
+                        onClick={() => window.location.hash = '#/simulation'}
                         className="w-full bg-fate-orange text-black font-bold py-4 rounded font-mono tracking-wider hover:bg-fate-orange-light transition-colors"
                     >
                         CONTINUE SIMULATION
@@ -253,7 +260,7 @@ function DashboardContent() {
                         <div className="flex-1 flex flex-col justify-center">
                             <p
                                 className="text-xl leading-relaxed mb-12 max-w-lg"
-                                dangerouslySetInnerHTML={{ __html: scenario.text }}
+                                dangerouslySetInnerHTML={{ __html: scenario.situation || scenario.text || 'Loading...' }}
                             />
 
                             <div className="flex flex-wrap gap-4">
@@ -264,8 +271,8 @@ function DashboardContent() {
                                         onClick={() => handleChoice(choice)}
                                         disabled={isProcessing}
                                         className={`px-6 py-3 rounded border-2 font-mono text-sm tracking-wider transition-all ${idx === 0
-                                                ? 'bg-fate-orange text-black border-fate-orange hover:bg-fate-orange-light'
-                                                : 'border-fate-orange text-fate-orange hover:bg-fate-orange hover:text-black'
+                                            ? 'bg-fate-orange text-black border-fate-orange hover:bg-fate-orange-light'
+                                            : 'border-fate-orange text-fate-orange hover:bg-fate-orange hover:text-black'
                                             } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     >
                                         {choice.label}
@@ -325,9 +332,5 @@ function DashboardContent() {
 }
 
 export default function Dashboard() {
-    return (
-        <GameProvider>
-            <DashboardContent />
-        </GameProvider>
-    )
+    return <DashboardContent />
 }

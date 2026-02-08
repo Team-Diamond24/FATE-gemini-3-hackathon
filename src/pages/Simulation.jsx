@@ -1,41 +1,135 @@
 import { useState, useEffect } from 'react'
-import { GameProvider, useGameState, useGameDispatch } from '../context/GameContext'
-import { processChoice, getScenario } from '../utils/processChoice'
+import { useGame } from '../context/GameContext'
+import { fetchMonthlyScenarios } from '../services/api'
 
 function SimulationContent() {
-    const state = useGameState()
-    const dispatch = useGameDispatch()
+    const {
+        state,
+        applyChoice,
+        advanceScenario,
+        applyIncome,
+        finalizeMonth,
+        startNewMonth,
+        setBatch,
+        getCurrentScenario,
+        isMonthComplete
+    } = useGame()
+
     const [scenario, setScenario] = useState(null)
     const [isProcessing, setIsProcessing] = useState(false)
+    const [loadError, setLoadError] = useState(null)
 
+    // Load scenarios when state is ready
     useEffect(() => {
-        if (state.isLoaded) {
-            setScenario(getScenario(state.month))
+        async function loadScenarios() {
+            if (!state.isLoaded) return
+
+            // If we have a batch with current scenario, use it
+            if (state.currentBatch) {
+                const current = getCurrentScenario()
+                if (current) {
+                    setScenario(current)
+                    return
+                }
+            }
+
+            // Otherwise fetch new scenarios for this month
+            try {
+                setLoadError(null)
+                console.log('Fetching scenarios for month:', state.month)
+                const batch = await fetchMonthlyScenarios(state)
+                console.log('Received batch:', batch)
+                setBatch(batch)
+
+                // Get current scenario from the new batch
+                if (batch && batch.scenarios && batch.scenarios.length > 0) {
+                    setScenario(batch.scenarios[0])
+                }
+            } catch (error) {
+                console.error('Failed to load scenarios:', error)
+                setLoadError('Failed to load scenarios. Please try again.')
+            }
         }
+        loadScenarios()
     }, [state.isLoaded, state.month])
 
     const handleChoice = async (choice) => {
         setIsProcessing(true)
 
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 500))
+        // Simulate small delay for UX
+        await new Promise(resolve => setTimeout(resolve, 300))
 
-        const result = processChoice(choice.id, state)
+        // Build Choice object expected by engine
+        // The choice from scenario has: id, label, balanceChange, riskChange
+        const engineChoice = {
+            balanceChange: choice.balanceChange || 0,
+            riskChange: choice.riskChange || 0,
+            savingsChange: choice.savingsChange || 0,
+            description: choice.label || '',
+            isInsurance: choice.isInsurance || false
+        }
 
-        dispatch({
-            type: 'PROCESS_CHOICE_RESULT',
-            payload: result
-        })
+        console.log('Applying choice:', engineChoice)
 
-        dispatch({ type: 'NEXT_MONTH' })
+        // Apply the choice using engine function
+        applyChoice(engineChoice)
+        advanceScenario()
 
-        setIsProcessing(false)
+        // Check if month is complete after advancing
+        // Need to check after the dispatch is processed
+        setTimeout(() => {
+            const monthDone = isMonthComplete()
+            console.log('Month complete?', monthDone)
 
-        // Go to dashboard to show results
-        window.location.hash = '#/dashboard'
+            if (monthDone) {
+                // Apply income and finalize month
+                applyIncome()
+                finalizeMonth()
+                startNewMonth()
+
+                // Navigate to dashboard to show results
+                window.location.hash = '#/dashboard'
+            } else {
+                // Get next scenario from batch
+                const nextScenario = getCurrentScenario()
+                console.log('Next scenario:', nextScenario)
+                setScenario(nextScenario)
+            }
+
+            setIsProcessing(false)
+        }, 100)
     }
 
-    if (!state.isLoaded || !scenario) {
+    // Loading state
+    if (!state.isLoaded) {
+        return (
+            <div className="min-h-screen bg-black flex items-center justify-center">
+                <div className="text-fate-orange font-mono text-sm tracking-wider animate-pulse">
+                    INITIALIZING SIMULATION...
+                </div>
+            </div>
+        )
+    }
+
+    // Error state
+    if (loadError) {
+        return (
+            <div className="min-h-screen bg-black flex items-center justify-center flex-col gap-4">
+                <div className="text-red-500 font-mono text-sm">
+                    {loadError}
+                </div>
+                <button
+                    onClick={() => window.location.reload()}
+                    className="px-4 py-2 border border-fate-orange text-fate-orange font-mono text-sm hover:bg-fate-orange hover:text-black transition-colors"
+                >
+                    RETRY
+                </button>
+            </div>
+        )
+    }
+
+    // Loading scenario state
+    if (!scenario) {
         return (
             <div className="min-h-screen bg-black flex items-center justify-center">
                 <div className="text-fate-orange font-mono text-sm tracking-wider animate-pulse">
@@ -44,6 +138,9 @@ function SimulationContent() {
             </div>
         )
     }
+
+    // Get the display text - scenarios from generator use 'situation', fallback UI uses 'text'
+    const displayText = scenario.situation || scenario.text || 'Make a choice...'
 
     return (
         <div className="min-h-screen bg-black text-white flex flex-col">
@@ -67,11 +164,11 @@ function SimulationContent() {
                 <div className="max-w-3xl text-center">
                     <h1
                         className="font-heading text-3xl md:text-5xl font-bold leading-tight mb-12"
-                        dangerouslySetInnerHTML={{ __html: scenario.text }}
+                        dangerouslySetInnerHTML={{ __html: displayText }}
                     />
 
                     <div className="flex flex-wrap justify-center gap-4">
-                        {scenario.choices.map((choice) => (
+                        {scenario.choices && scenario.choices.map((choice) => (
                             <button
                                 key={choice.id}
                                 onClick={() => handleChoice(choice)}
@@ -83,6 +180,11 @@ function SimulationContent() {
                                     }`}
                             >
                                 {choice.label}
+                                {choice.balanceChange !== 0 && (
+                                    <span className={`ml-2 ${choice.balanceChange > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                        ({choice.balanceChange > 0 ? '+' : ''}{choice.balanceChange})
+                                    </span>
+                                )}
                             </button>
                         ))}
                     </div>
@@ -103,8 +205,8 @@ function SimulationContent() {
                             <span
                                 key={num}
                                 className={`font-mono text-sm ${num === ((state.month - 1) % 3) + 1
-                                        ? 'text-white font-bold'
-                                        : 'text-fate-muted'
+                                    ? 'text-white font-bold'
+                                    : 'text-fate-muted'
                                     }`}
                             >
                                 {String(num).padStart(2, '0')}
@@ -127,9 +229,5 @@ function SimulationContent() {
 }
 
 export default function Simulation() {
-    return (
-        <GameProvider>
-            <SimulationContent />
-        </GameProvider>
-    )
+    return <SimulationContent />
 }

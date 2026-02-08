@@ -1,5 +1,33 @@
 import { useState } from 'react'
 import { getUserSession, savePreferences } from '../utils/session'
+import { useGameDispatch } from '../context/GameContext'
+
+/**
+ * Maps user preferences to behavioral answers for the game engine
+ * The engine expects an array of 'A' or 'B' answers for 3 questions
+ * 
+ * @param {Object} preferences - User preferences from setup
+ * @returns {Array<string>} Array of answers ['A', 'B', 'A'] etc.
+ */
+function mapPreferencesToAnswers(preferences) {
+    const answers = []
+
+    // Question 1: Stability (A: Flexible, B: Locked)
+    // Map primaryDrive - security = B (locked/stable), others = A
+    answers.push(preferences.primaryDrive === 'security' ? 'B' : 'A')
+
+    // Question 2: Protection (A: Luck, B: Covered)
+    // Map based on if health/savings are in spending interests
+    const protectionInterests = ['health', 'savings']
+    const hasProtectionFocus = preferences.spendingInterests?.some(i => protectionInterests.includes(i))
+    answers.push(hasProtectionFocus ? 'B' : 'A')
+
+    // Question 3: Ambition (A: Steady, B: High Stakes)
+    // Map riskLevel - high = B, others = A
+    answers.push(preferences.riskLevel === 'high' ? 'B' : 'A')
+
+    return answers
+}
 
 const STEPS = [
     { id: 1, label: 'Primary Drive' },
@@ -46,6 +74,7 @@ const RISK_LEVELS = [
 ]
 
 export default function PreferencesSetup() {
+    const dispatch = useGameDispatch()
     const [currentStep, setCurrentStep] = useState(1)
     const [preferences, setPreferences] = useState({
         primaryDrive: null,
@@ -81,9 +110,14 @@ export default function PreferencesSetup() {
         if (currentStep < 3) {
             setCurrentStep(prev => prev + 1)
         } else {
-            // Save and redirect
+            // Save preferences to localStorage
             const { userId } = getUserSession()
             savePreferences(userId, preferences)
+
+            // Apply behavioral decisions to game engine
+            const answers = mapPreferencesToAnswers(preferences)
+            dispatch({ type: 'APPLY_BEHAVIORAL_DECISIONS', payload: answers })
+
             window.location.hash = '#/dashboard'
         }
     }
@@ -123,8 +157,8 @@ export default function PreferencesSetup() {
                                     key={drive.id}
                                     onClick={() => handleDriveSelect(drive.id)}
                                     className={`p-6 rounded-lg text-left transition-all ${preferences.primaryDrive === drive.id
-                                            ? 'bg-fate-orange text-black'
-                                            : 'bg-fate-card hover:bg-fate-gray border border-fate-gray'
+                                        ? 'bg-fate-orange text-black'
+                                        : 'bg-fate-card hover:bg-fate-gray border border-fate-gray'
                                         }`}
                                 >
                                     <div className="flex justify-between items-start mb-16">
@@ -162,8 +196,8 @@ export default function PreferencesSetup() {
                                     key={interest.id}
                                     onClick={() => handleInterestToggle(interest.id)}
                                     className={`p-4 rounded-lg text-left transition-all font-medium ${preferences.spendingInterests.includes(interest.id)
-                                            ? 'bg-fate-orange text-black'
-                                            : 'bg-fate-card hover:bg-fate-gray border border-fate-gray text-white'
+                                        ? 'bg-fate-orange text-black'
+                                        : 'bg-fate-card hover:bg-fate-gray border border-fate-gray text-white'
                                         }`}
                                 >
                                     {interest.label}
@@ -189,8 +223,8 @@ export default function PreferencesSetup() {
                                     key={risk.id}
                                     onClick={() => handleRiskSelect(risk.id)}
                                     className={`p-6 rounded-lg text-left transition-all ${preferences.riskLevel === risk.id
-                                            ? 'bg-fate-orange text-black'
-                                            : 'bg-fate-card hover:bg-fate-gray border border-fate-gray'
+                                        ? 'bg-fate-orange text-black'
+                                        : 'bg-fate-card hover:bg-fate-gray border border-fate-gray'
                                         }`}
                                 >
                                     <h3 className="font-heading text-3xl font-bold mb-2">
@@ -224,8 +258,8 @@ export default function PreferencesSetup() {
                         onClick={handleNext}
                         disabled={!canProceed()}
                         className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${canProceed()
-                                ? 'bg-white text-black hover:bg-fate-orange'
-                                : 'bg-fate-gray text-fate-muted cursor-not-allowed'
+                            ? 'bg-white text-black hover:bg-fate-orange'
+                            : 'bg-fate-gray text-fate-muted cursor-not-allowed'
                             }`}
                     >
                         →
