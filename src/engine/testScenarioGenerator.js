@@ -6,8 +6,7 @@ import {
 } from './gameEngine.js';
 import { 
   validateScenario, 
-  getFallbackScenario, 
-  generateScenario,
+  getFallbackScenario,
   FALLBACK_SCENARIOS 
 } from './scenarioGenerator.js';
 
@@ -52,12 +51,6 @@ invalidCases.forEach(({ name, data }) => {
   console.log(`${name}: ${!isValid ? 'PASS (correctly rejected)' : 'FAIL'}`);
 });
 
-// Test 5: Generate with no API key (should return fallback)
-console.log('\n=== Testing generateScenario without API key ===');
-const gameState = initializeGameState();
-generateScenario(gameState, null).then(scenario => {
-  console.log('Returned fallback:', validateScenario(scenario) ? 'PASS' : 'FAIL');
-  console.log('Situation:', scenario.situation);
-});
+// Test 5 (generateScenario) removed as migrated to batch scenarios
 
 console.log('\n=== All sync tests completed ===');

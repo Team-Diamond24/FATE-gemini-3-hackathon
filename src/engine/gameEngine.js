@@ -22,20 +22,34 @@ const TAX_RATE = 0.20; // 20% flat tax
  * @property {boolean} insuranceOpted - Whether player has insurance
  * @property {number} riskScore - Player's financial risk score (0-100)
  * @property {Array} history - Array of past state snapshots
+ * @property {MonthlyScenarioBatch|null} currentBatch - Current month's scenario batch
+ * @property {string} userId - Unique identifier for the user
+ * @property {Object} modifiers - Behavioral modifiers influencing gameplay
+ * @property {number} modifiers.riskSensitivity - Multiplier for risk changes (default 1.0)
+ * @property {number} modifiers.insuranceLikelihood - Weight for insurance offering (default 1.0)
+ * @property {number} modifiers.difficultyModifier - Used during scenario generation (default 1.0)
  */
 
 /**
  * Creates a new game state with sensible defaults
+ * @param {string} [userId='default_user'] - Unique identifier for the user
  * @returns {GameState}
  */
-export function initializeGameState() {
+export function initializeGameState(userId = 'default_user') {
   return {
-    month: 1,
+    userId,
+    month: 0,
     balance: 1000,
     savings: 500,
     insuranceOpted: false,
     riskScore: 50,
     history: [],
+    currentBatch: null,
+    modifiers: {
+      riskSensitivity: 1.0,
+      insuranceLikelihood: 1.0,
+      difficultyModifier: 1.0,
+    }
   };
 }
 
@@ -44,12 +58,12 @@ export function initializeGameState() {
 // ============================================
 
 /**
- * Advances the game by one month
- * Saves current state to history before advancing
+ * Finalizes the month by saving state to history
+ * Does NOT increment month (handled by startMonth now)
  * @param {GameState} state - Current game state
- * @returns {GameState} - Updated game state
+ * @returns {GameState} - Updated game state with history snapshot
  */
-export function advanceMonth(state) {
+export function finalizeMonth(state) {
   // Save current state snapshot to history
   const snapshot = {
     month: state.month,
@@ -60,10 +74,12 @@ export function advanceMonth(state) {
 
   return {
     ...state,
-    month: state.month + 1,
     history: [...state.history, snapshot],
   };
 }
+
+// Deprecated: Alias for backward compatibility if needed, but logic changed
+export const advanceMonth = finalizeMonth;
 
 /**
  * Applies monthly income after tax deduction
@@ -155,4 +171,133 @@ export function cloneState(state) {
  */
 export function getNetWorth(state) {
   return state.balance + state.savings;
+}
+
+/**
+ * @typedef {Object} ScenarioChoice
+ * @property {string} id
+ * @property {string} label
+ * @property {number} balanceChange
+ * @property {number} riskChange
+ */
+
+/**
+ * @typedef {Object} Scenario
+ * @property {string} id
+ * @property {string} situation
+ * @property {ScenarioChoice[]} choices
+ */
+
+/**
+ * @typedef {Object} MonthlyScenarioBatch
+ * @property {number} month
+ * @property {Scenario[]} scenarios
+ * @property {number} currentIndex
+ */
+
+/**
+ * Initializes a new monthly scenario batch with empty scenarios
+ * @param {number} month - The month number for this batch
+ * @returns {MonthlyScenarioBatch} - A new empty batch object
+ */
+export function initializeMonthlyBatch(month) {
+  return {
+    month: month,
+    scenarios: [],
+    currentIndex: 0
+  };
+}
+
+// ============================================
+// BATCH CONSUMPTION LOGIC
+// ============================================
+
+/**
+ * Gets the current scenario from the batch based on currentIndex
+ * @param {MonthlyScenarioBatch} batch - The scenario batch
+ * @returns {Object|null} - The current scenario or null if batch is finished/invalid
+ */
+export function getCurrentScenario(batch) {
+  if (!batch || !batch.scenarios || batch.currentIndex >= batch.scenarios.length) {
+    return null;
+  }
+  return batch.scenarios[batch.currentIndex];
+}
+
+/**
+ * Advances the batch index by one
+ * @param {MonthlyScenarioBatch} batch - The scenario batch
+ * @returns {MonthlyScenarioBatch} - New batch object with incremented index or same batch if null
+ */
+export function advanceScenarioIndex(batch) {
+  if (!batch) return batch;
+  return {
+    ...batch,
+    currentIndex: batch.currentIndex + 1
+  };
+}
+
+/**
+ * Checks if the month's scenarios are all completed
+ * @param {MonthlyScenarioBatch} batch - The scenario batch
+ * @returns {boolean} - True if all scenarios consumed or batch invalid
+ */
+export function isMonthComplete(batch) {
+  if (!batch || !batch.scenarios) return true;
+  return batch.currentIndex >= batch.scenarios.length;
+}
+
+// ============================================
+// BEHAVIORAL LOGIC
+// ============================================
+
+/**
+ * Applies the impact of behavioral decisions to the game state modifiers
+ * @param {GameState} state - Current game state
+ * @param {Array<string>} answers - Array of answers ('A' or 'B') for decision questions
+ * @returns {GameState} - Updated game state with new modifiers
+ */
+export function applyBehavioralDecisions(state, answers) {
+  if (!answers || !Array.isArray(answers)) return state;
+
+  const newModifiers = { ...state.modifiers || {
+    riskSensitivity: 1.0,
+    insuranceLikelihood: 1.0,
+    difficultyModifier: 1.0
+  }};
+
+  // Example mappings based on standard question themes
+  // Question 1: Stability (A: Flexible, B: Locked)
+  if (answers[0] === 'B') {
+    newModifiers.riskSensitivity -= 0.05;
+    newModifiers.difficultyModifier -= 0.05;
+  } else if (answers[0] === 'A') {
+    newModifiers.riskSensitivity += 0.05;
+  }
+
+  // Question 2: Protection (A: Luck, B: Covered)
+  if (answers[1] === 'B') {
+    newModifiers.insuranceLikelihood += 0.1;
+  } else if (answers[1] === 'A') {
+    newModifiers.insuranceLikelihood -= 0.05;
+  }
+
+  // Question 3: Ambition (A: Steady, B: High Stakes)
+  if (answers[2] === 'B') {
+    newModifiers.difficultyModifier += 0.1;
+    newModifiers.riskSensitivity += 0.05;
+  } else if (answers[2] === 'A') {
+    newModifiers.difficultyModifier -= 0.05;
+    newModifiers.riskSensitivity -= 0.05;
+  }
+
+  // Clamp modifiers to reasonable ranges
+  newModifiers.riskSensitivity = Math.max(0.5, Math.min(2.0, newModifiers.riskSensitivity));
+  newModifiers.insuranceLikelihood = Math.max(0.1, Math.min(2.0, newModifiers.insuranceLikelihood));
+  newModifiers.difficultyModifier = Math.max(0.5, Math.min(2.0, newModifiers.difficultyModifier));
+
+  return {
+    ...state,
+    modifiers: newModifiers
+  };
 }
