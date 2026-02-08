@@ -82,12 +82,10 @@ function SimulationContent() {
             console.log('Month complete?', monthDone)
 
             if (monthDone) {
-                // Apply income and finalize month
-                applyIncome()
+                // Month is complete - finalize and go to dashboard for reflection
                 finalizeMonth()
-                startNewMonth()
-
-                // Navigate to dashboard to show results
+                
+                // Navigate to dashboard to show month-end report
                 window.location.hash = '#/dashboard'
             } else {
                 // Get next scenario from batch

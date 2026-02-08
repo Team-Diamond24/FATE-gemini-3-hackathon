@@ -106,7 +106,7 @@ export default function PreferencesSetup() {
         return false
     }
 
-    const handleNext = () => {
+    const handleNext = async () => {
         if (currentStep < 3) {
             setCurrentStep(prev => prev + 1)
         } else {
@@ -118,7 +118,11 @@ export default function PreferencesSetup() {
             const answers = mapPreferencesToAnswers(preferences)
             dispatch({ type: 'APPLY_BEHAVIORAL_DECISIONS', payload: answers })
 
-            window.location.hash = '#/dashboard'
+            // Start Month 1 and go directly to simulation
+            dispatch({ type: 'START_NEW_MONTH', payload: { batch: null } })
+            
+            // Redirect to simulation to start playing
+            window.location.hash = '#/simulation'
         }
     }
 

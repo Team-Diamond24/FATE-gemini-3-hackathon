@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { Shield, User, Settings, Image, ChevronRight, Home, DollarSign, AlertTriangle, CheckCircle } from 'lucide-react'
 import { useGame } from '../context/GameContext'
 import { getUserSession } from '../utils/session'
-import { fetchMonthlyScenarios, fetchMonthlyReflection } from '../services/api'
+import { fetchMonthlyScenarios, fetchMonthlyReflection, fetchDecisionQuestions } from '../services/api'
 
 // Impact Log Item Component
 function ImpactLogItem({ log }) {
@@ -40,7 +40,28 @@ function ImpactLogItem({ log }) {
 }
 
 // Summary Panel Component - Shown when month is complete
-function SummaryPanel({ reflection, isLoading, onProceed, isProceedLoading }) {
+function SummaryPanel({ reflection, decisionQuestions, isLoading, onProceed, isProceedLoading, selectedAnswers, onAnswerSelect, currentMonth }) {
+    // Parse decision questions (simple format: "1. Question?\nA) Option\nB) Option")
+    const parseQuestions = (text) => {
+        if (!text) return []
+        const lines = text.split('\n').filter(line => line.trim())
+        const questions = []
+        let currentQuestion = null
+        
+        for (const line of lines) {
+            if (/^\d+\./.test(line)) {
+                if (currentQuestion) questions.push(currentQuestion)
+                currentQuestion = { question: line, choices: [] }
+            } else if (/^[AB]\)/.test(line) && currentQuestion) {
+                currentQuestion.choices.push(line)
+            }
+        }
+        if (currentQuestion) questions.push(currentQuestion)
+        return questions
+    }
+
+    const questions = parseQuestions(decisionQuestions)
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -51,26 +72,62 @@ function SummaryPanel({ reflection, isLoading, onProceed, isProceedLoading }) {
                 <div className="flex items-center gap-3 mb-4">
                     <CheckCircle size={24} className="text-green-400" />
                     <span className="font-mono text-lg text-green-400 tracking-wider">
-                        MONTH COMPLETE
+                        MONTH {currentMonth} COMPLETE
                     </span>
                 </div>
             </div>
 
-            <div className="bg-fate-card border border-fate-gray/30 rounded-lg p-6 mb-8">
+            {/* Monthly Reflection */}
+            <div className="bg-fate-card border border-fate-gray/30 rounded-lg p-6 mb-6">
                 <span className="font-mono text-xs text-fate-text tracking-widest block mb-4">
-                    MONTHLY REFLECTION
+                    MONTHLY ANALYSIS
                 </span>
                 {isLoading ? (
                     <div className="flex items-center gap-3 text-fate-muted">
                         <div className="w-4 h-4 border-2 border-fate-orange border-t-transparent rounded-full animate-spin" />
-                        <span className="font-mono text-sm">Generating reflection...</span>
+                        <span className="font-mono text-sm">Analyzing your choices...</span>
                     </div>
                 ) : (
-                    <p className="text-white leading-relaxed">
-                        {reflection || 'Your financial decisions this month have shaped your path. Review your choices and prepare for new challenges ahead.'}
-                    </p>
+                    <div className="text-white leading-relaxed whitespace-pre-line">
+                        {reflection || 'Your financial decisions this month have shaped your path.'}
+                    </div>
                 )}
             </div>
+
+            {/* Decision Questions */}
+            {!isLoading && questions.length > 0 && (
+                <div className="bg-fate-card border border-fate-gray/30 rounded-lg p-6 mb-8">
+                    <span className="font-mono text-xs text-fate-text tracking-widest block mb-4">
+                        NEXT MONTH'S PLAN
+                    </span>
+                    <div className="space-y-4">
+                        {questions.map((q, idx) => (
+                            <div key={idx} className="border-b border-fate-gray/30 pb-4 last:border-0">
+                                <p className="text-white mb-3">{q.question}</p>
+                                <div className="flex gap-3">
+                                    {q.choices.map((choice, cIdx) => {
+                                        const answer = choice.startsWith('A)') ? 'A' : 'B'
+                                        const isSelected = selectedAnswers[idx] === answer
+                                        return (
+                                            <button
+                                                key={cIdx}
+                                                onClick={() => onAnswerSelect(idx, answer)}
+                                                className={`flex-1 px-4 py-2 rounded font-mono text-sm transition-colors ${
+                                                    isSelected
+                                                        ? 'bg-fate-orange text-black'
+                                                        : 'bg-fate-gray text-white hover:bg-fate-gray/70'
+                                                }`}
+                                            >
+                                                {choice}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             <motion.button
                 whileTap={{ scale: 0.98 }}
@@ -86,7 +143,7 @@ function SummaryPanel({ reflection, isLoading, onProceed, isProceedLoading }) {
                     </>
                 ) : (
                     <>
-                        PROCEED TO NEXT MONTH
+                        START MONTH {currentMonth + 1}
                         <ChevronRight size={18} />
                     </>
                 )}
@@ -107,43 +164,39 @@ function DashboardContent() {
         finalizeMonth,
         startNewMonth,
         setBatch,
-        updateInsurance
+        updateInsurance,
+        applyBehavioralDecisions
     } = useGame()
 
-    const [scenario, setScenario] = useState(null)
-    const [isProcessing, setIsProcessing] = useState(false)
-    const [showSummary, setShowSummary] = useState(false)
     const [reflection, setReflection] = useState('')
+    const [decisionQuestions, setDecisionQuestions] = useState('')
     const [isLoadingReflection, setIsLoadingReflection] = useState(false)
     const [isProceedLoading, setIsProceedLoading] = useState(false)
+    const [selectedAnswers, setSelectedAnswers] = useState([])
     const { userId } = getUserSession()
 
-    // Check if month is complete and load scenario
+    // Load reflection when dashboard loads (month just completed)
     useEffect(() => {
-        if (state.isLoaded) {
-            // Check if month is complete
-            const monthComplete = isMonthComplete()
-
-            if (monthComplete) {
-                setShowSummary(true)
-                loadReflection()
-            } else if (state.currentBatch) {
-                const current = getCurrentScenario()
-                setScenario(current)
-                setShowSummary(false)
-            }
+        if (state.isLoaded && isMonthComplete()) {
+            loadMonthEndData()
         }
-    }, [state.isLoaded, state.month, state.currentBatch])
+    }, [state.isLoaded])
 
-    // Load monthly reflection
-    const loadReflection = async () => {
+    // Load monthly reflection and decision questions
+    const loadMonthEndData = async () => {
         setIsLoadingReflection(true)
         try {
+            // Generate reflection based on user's choices this month
             const reflectionText = await fetchMonthlyReflection(state)
             setReflection(reflectionText)
+            
+            // Generate decision questions based on reflection
+            const questions = await fetchDecisionQuestions(state, reflectionText)
+            setDecisionQuestions(questions)
         } catch (error) {
-            console.error('Failed to load reflection:', error)
+            console.error('Failed to load month-end data:', error)
             setReflection('This month has been a journey of financial decisions. Your choices have impacted your balance and risk profile.')
+            setDecisionQuestions('1. Next month, do you want to:\nA) Be more cautious\nB) Take more risks')
         } finally {
             setIsLoadingReflection(false)
         }
@@ -153,52 +206,35 @@ function DashboardContent() {
     const handleProceedToNextMonth = async () => {
         setIsProceedLoading(true)
         try {
-            // Step 1: Apply income
+            // Apply behavioral decisions from questions if answered
+            if (selectedAnswers.length > 0) {
+                applyBehavioralDecisions(selectedAnswers)
+            }
+
+            // Apply income for new month
             applyIncome()
 
-            // Step 2: Finalize month (save to history)
-            finalizeMonth()
-
-            // Step 3: Fetch new scenarios
+            // Fetch new scenarios for next month
             const newBatch = await fetchMonthlyScenarios(state)
 
-            // Step 4: Start new month with new batch
+            // Start new month with new batch
             startNewMonth(newBatch)
 
             // Reset UI state
-            setShowSummary(false)
             setReflection('')
+            setDecisionQuestions('')
+            setSelectedAnswers([])
 
-            // Navigate to simulation
+            // Navigate to simulation for next month
             window.location.hash = '#/simulation'
         } catch (error) {
             console.error('Failed to proceed to next month:', error)
             // Still proceed with defaults
             startNewMonth(null)
-            setShowSummary(false)
             window.location.hash = '#/simulation'
         } finally {
             setIsProceedLoading(false)
         }
-    }
-
-    const handleChoice = async (choice) => {
-        setIsProcessing(true)
-        await new Promise(resolve => setTimeout(resolve, 300))
-
-        // Build Choice object expected by engine
-        const engineChoice = {
-            balanceChange: choice.balanceChange || 0,
-            riskChange: choice.riskChange || 0,
-            savingsChange: choice.savingsChange || 0,
-            description: choice.label || '',
-            isInsurance: choice.isInsurance || false
-        }
-
-        applyChoice(engineChoice)
-        advanceScenario()
-
-        setIsProcessing(false)
     }
 
     const handleBuyInsurance = () => {
@@ -390,69 +426,38 @@ function DashboardContent() {
                     {/* Spacer */}
                     <div className="flex-1" />
 
-                    {/* Continue Button */}
+                    {/* Continue Button - Goes back to simulation if mid-month */}
                     <motion.button
                         whileTap={{ scale: 0.98 }}
-                        onClick={() => window.location.hash = '#/simulation'}
-                        className="w-full bg-fate-orange text-black font-bold py-4 rounded font-mono tracking-wider hover:bg-fate-orange-light transition-colors"
+                        onClick={() => window.location.hash = '#/'}
+                        className="w-full bg-fate-gray text-white font-bold py-4 rounded font-mono tracking-wider hover:bg-fate-gray/70 transition-colors"
                     >
-                        CONTINUE SIMULATION
+                        BACK TO HOME
                     </motion.button>
                 </div>
 
-                {/* CENTER COLUMN - Active Scenario or Summary */}
+                {/* CENTER COLUMN - Month Summary */}
                 <div className="p-8 flex flex-col border-r border-fate-gray/30">
                     <div className="mb-4">
                         <span className="font-mono text-xs text-fate-text tracking-widest">
-                            TEMPORAL NODE // <span className="text-white">MONTH {String(state.month).padStart(2, '0')} EVENT</span>
+                            MONTH {String(state.month).padStart(2, '0')} SUMMARY
                         </span>
                     </div>
 
-                    {showSummary ? (
-                        <SummaryPanel
-                            reflection={reflection}
-                            isLoading={isLoadingReflection}
-                            onProceed={handleProceedToNextMonth}
-                            isProceedLoading={isProceedLoading}
-                        />
-                    ) : scenario ? (
-                        <div className="flex-1 flex flex-col justify-center">
-                            <p
-                                className="text-xl leading-relaxed mb-12 max-w-lg"
-                                dangerouslySetInnerHTML={{ __html: scenario.situation || scenario.text || 'Loading...' }}
-                            />
-
-                            <div className="flex flex-wrap gap-4">
-                                {scenario.choices && scenario.choices.map((choice, idx) => (
-                                    <motion.button
-                                        key={choice.id}
-                                        whileTap={{ scale: 0.95 }}
-                                        onClick={() => handleChoice(choice)}
-                                        disabled={isProcessing}
-                                        className={`px-6 py-3 rounded border-2 font-mono text-sm tracking-wider transition-all ${idx === 0
-                                            ? 'bg-fate-orange text-black border-fate-orange hover:bg-fate-orange-light'
-                                            : 'border-fate-orange text-fate-orange hover:bg-fate-orange hover:text-black'
-                                            } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                    >
-                                        {choice.label}
-                                        {choice.cost && (
-                                            <span className="ml-3 px-2 py-0.5 bg-black/20 rounded text-xs">
-                                                ₹{choice.cost.toLocaleString()}
-                                            </span>
-                                        )}
-                                    </motion.button>
-                                ))}
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center text-center">
-                            <div className="text-fate-muted mb-4">
-                                <AlertTriangle size={48} className="mx-auto opacity-50" />
-                            </div>
-                            <p className="font-mono text-sm text-fate-text mb-2">No active scenario</p>
-                            <p className="font-mono text-xs text-fate-muted">Click "Continue Simulation" to start</p>
-                        </div>
-                    )}
+                    <SummaryPanel
+                        reflection={reflection}
+                        decisionQuestions={decisionQuestions}
+                        isLoading={isLoadingReflection}
+                        onProceed={handleProceedToNextMonth}
+                        isProceedLoading={isProceedLoading}
+                        selectedAnswers={selectedAnswers}
+                        onAnswerSelect={(idx, answer) => {
+                            const newAnswers = [...selectedAnswers]
+                            newAnswers[idx] = answer
+                            setSelectedAnswers(newAnswers)
+                        }}
+                        currentMonth={state.month}
+                    />
                 </div>
 
                 {/* RIGHT COLUMN - Impact Logs */}

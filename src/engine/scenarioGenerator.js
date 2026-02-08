@@ -233,16 +233,16 @@ function injectInsuranceChoice(scenario, gameState) {
 // ============================================
 
 const ANALYSIS_PROMPT = `You are a financial analysis generator for a simulation game for Indian college students.
-Your task is to generate a short, structured analysis of the player's month.
+Your task is to generate a short, structured analysis of the player's month based on their ACTUAL choices and financial data.
 
 SECTIONS (You MUST use these exact headers):
-1. Spending behaviour: Analyze where the money went based on the spending data.
+1. Spending behaviour: Analyze where the money went based on the specific choices made.
 2. Tax impact: State the tax deducted neutrally.
-3. Risk & protection: Note if insurance was kept or not.
+3. Risk & protection: Note if insurance was kept or not and current risk level.
 
 RULES:
 - You MUST include all 3 headers as numbered sections.
-- Use the provided data only.
+- Use the provided data only - reference specific choices the user made.
 - NO generic explanations.
 - NO advice or recommendations.
 - NO judgement or scolding.
@@ -252,20 +252,29 @@ RULES:
 
 INPUT DATA:
 Month: {month}
-Income: ₹{income}
-Spending: ₹{spending}
-Tax: ₹{tax}
-Insurance Opted: {insurance}
-Events: {events}`;
+Monthly Income: ₹{income}
+Total Spending: ₹{spending}
+Total Earnings (from choices): ₹{earnings}
+Tax Deducted: ₹{tax}
+Insurance Status: {insurance}
+Current Balance: ₹{balance}
+Current Savings: ₹{savings}
+Current Risk Score: {riskScore}/100
+
+CHOICES MADE THIS MONTH:
+{choices}
+
+Number of decisions: {numChoices}`;
 
 const DECISION_PROMPT = `You are a behavioral strategist for a financial simulation game for Indian college students.
-Your task is to generate exactly 3 short questions for the "Next Month's Plan" based on the player's performance this month.
+Your task is to generate exactly 3 short questions for the "Next Month's Plan" based on the player's ACTUAL performance and choices this month.
 
 RULES:
 - Generate exactly 3 questions.
 - Each question must have exactly 2 choices: A and B.
-- Questions must be based on the provided month summary and data.
+- Questions must be based on the provided month summary, choices made, and current financial state.
 - The choices should represent different behavioral approaches (e.g., proactive vs reactive, saving vs spending).
+- Reference specific patterns from their choices when relevant.
 - NO correct or incorrect answers.
 - NO quizzes.
 - NO scoring.
@@ -278,7 +287,14 @@ INPUT DATA:
 Month: {month}
 Summary of this month: {summary}
 User's behavioral patterns: {patterns}
-Tax/Insurance status: {status}`;
+Tax/Insurance status: {status}
+Current Balance: ₹{balance}
+Current Risk Score: {riskScore}/100
+
+CHOICES MADE THIS MONTH:
+{choices}
+
+Number of decisions: {numChoices}`;
 
 /**
  * Extracts relevant data for monthly analysis
@@ -290,26 +306,47 @@ function extractMonthAnalysisData(gameState) {
   // Get entries from the current month
   const monthEntries = history.filter(entry => entry.month === currentMonth);
   
+  // Get all choices made this month with details
+  const choicesMade = monthEntries
+    .filter(e => e.type === 'choice')
+    .map(e => ({
+      description: e.description || 'Unknown choice',
+      balanceChange: e.balanceChange || 0,
+      riskChange: e.riskChange || 0,
+      savingsChange: e.savingsChange || 0
+    }));
+  
   // Total spending (sum of negative balanceChange from choices)
-  const totalSpending = monthEntries
-    .filter(e => e.type === 'choice' && e.balanceChange < 0)
-    .reduce((sum, e) => sum + Math.abs(e.balanceChange), 0);
+  const totalSpending = choicesMade
+    .filter(c => c.balanceChange < 0)
+    .reduce((sum, c) => sum + Math.abs(c.balanceChange), 0);
+  
+  // Total earnings (sum of positive balanceChange from choices)
+  const totalEarnings = choicesMade
+    .filter(c => c.balanceChange > 0)
+    .reduce((sum, c) => sum + c.balanceChange, 0);
     
   // Fixed values for now as per game rules (5000 income, 20% tax)
   const income = 5000;
   const tax = 1000;
   
-  const events = monthEntries
-    .filter(e => e.type === 'choice' && e.description)
-    .map(e => e.description);
+  // Format choices for Gemini
+  const choicesFormatted = choicesMade.map((c, idx) => 
+    `${idx + 1}. ${c.description} (Balance: ${c.balanceChange >= 0 ? '+' : ''}₹${c.balanceChange}, Risk: ${c.riskChange >= 0 ? '+' : ''}${c.riskChange})`
+  ).join('\n');
 
   return {
     month: currentMonth,
     income,
     spending: totalSpending,
+    earnings: totalEarnings,
     tax,
     insurance: gameState.insuranceOpted ? "Opted In" : "Not Opted",
-    events: events.length > 0 ? events.join(', ') : "No major events"
+    currentBalance: gameState.balance,
+    currentSavings: gameState.savings,
+    currentRiskScore: gameState.riskScore,
+    choicesMade: choicesFormatted || "No choices made this month",
+    numberOfChoices: choicesMade.length
   };
 }
 
@@ -320,28 +357,47 @@ function extractDecisionContextData(gameState, analysisText) {
   const history = gameState.history || [];
   const monthEntries = history.filter(entry => entry.month === gameState.month);
   
-  // Risk trend
-  const riskChange = monthEntries
+  // Get all choices made this month
+  const choicesMade = monthEntries
     .filter(e => e.type === 'choice')
-    .reduce((sum, e) => sum + (e.riskChange || 0), 0);
+    .map(e => ({
+      description: e.description || 'Unknown choice',
+      balanceChange: e.balanceChange || 0,
+      riskChange: e.riskChange || 0
+    }));
+  
+  // Risk trend
+  const riskChange = choicesMade.reduce((sum, c) => sum + (c.riskChange || 0), 0);
     
   let patterns = [];
   if (riskChange > 5) patterns.push("Willing to take on higher financial risks");
   if (riskChange < -5) patterns.push("Highly cautious and risk-averse behavior");
   
   // Balance trend
-  const choices = monthEntries.filter(e => e.type === 'choice');
-  const heavySpending = choices.filter(c => c.balanceChange < -1000).length;
+  const heavySpending = choicesMade.filter(c => c.balanceChange < -1000).length;
   if (heavySpending > 0) patterns.push("Inclination towards high-value one-time purchases");
   
-  const smallSpending = choices.filter(c => c.balanceChange < 0 && c.balanceChange > -500).length;
+  const smallSpending = choicesMade.filter(c => c.balanceChange < 0 && c.balanceChange > -500).length;
   if (smallSpending >= 3) patterns.push("Frequent small expenditures");
+  
+  // Income-generating choices
+  const incomeChoices = choicesMade.filter(c => c.balanceChange > 0).length;
+  if (incomeChoices > 0) patterns.push("Actively seeking income opportunities");
+  
+  // Format choices for context
+  const choicesFormatted = choicesMade.map((c, idx) => 
+    `${idx + 1}. ${c.description} (₹${c.balanceChange >= 0 ? '+' : ''}${c.balanceChange})`
+  ).join('\n');
 
   return {
     month: gameState.month,
     summary: analysisText,
     patterns: patterns.length > 0 ? patterns.join(', ') : "Moderate/Balanced approach",
-    status: `Tax deducted: ₹1000, Insurance: ${gameState.insuranceOpted ? 'Active' : 'Not active'}`
+    status: `Tax deducted: ₹1000, Insurance: ${gameState.insuranceOpted ? 'Active' : 'Not active'}`,
+    currentBalance: gameState.balance,
+    currentRiskScore: gameState.riskScore,
+    choicesMade: choicesFormatted || "No choices made",
+    numberOfChoices: choicesMade.length
   };
 }
 
@@ -353,7 +409,11 @@ function buildDecisionContext(data) {
     .replace('{month}', data.month)
     .replace('{summary}', data.summary)
     .replace('{patterns}', data.patterns)
-    .replace('{status}', data.status);
+    .replace('{status}', data.status)
+    .replace('{balance}', data.currentBalance)
+    .replace('{riskScore}', data.currentRiskScore)
+    .replace('{choices}', data.choicesMade)
+    .replace('{numChoices}', data.numberOfChoices);
 }
 
 /**
@@ -364,9 +424,14 @@ function buildAnalysisContext(data) {
     .replace('{month}', data.month)
     .replace('{income}', data.income)
     .replace('{spending}', data.spending)
+    .replace('{earnings}', data.earnings)
     .replace('{tax}', data.tax)
     .replace('{insurance}', data.insurance)
-    .replace('{events}', data.events);
+    .replace('{balance}', data.currentBalance)
+    .replace('{savings}', data.currentSavings)
+    .replace('{riskScore}', data.currentRiskScore)
+    .replace('{choices}', data.choicesMade)
+    .replace('{numChoices}', data.numberOfChoices);
 }
 
 /**
@@ -511,13 +576,15 @@ async function generateDecisionQuestions(gameState, analysisText, apiKey) {
 
 const MONTHLY_BATCH_PROMPT = `You are a scenario generator for a financial life simulation game aimed at Indian college students.
 
-Your task is to generate 5 realistic financial scenarios for ONE month of the student's life.
+Your task is to generate 5 realistic financial scenarios for ONE month of the student's life based on their previous choices and current financial state.
 
 RULES:
 - Generate exactly 5 scenarios
 - Target user: Indian student
 - Scenarios should feel like everyday life
 - Mix small decisions and one stressful situation
+- Consider the user's previous choices and current financial state when generating scenarios
+- Make scenarios contextually relevant to their situation
 - No advice
 - No explanations
 - No emojis
@@ -607,16 +674,37 @@ async function generateMonthlyScenarios(gameState, apiKey) {
     if (modifiers.riskSensitivity < 0.9) behaviorDesc = "Player is very risk-averse.";
     if (modifiers.difficultyModifier > 1.1) behaviorDesc += " Scenarios should be more challenging with higher stakes.";
 
+    // Get previous month's choices for context
+    const history = gameState.history || [];
+    const previousMonthChoices = history
+      .filter(e => e.type === 'choice' && e.month === gameState.month - 1)
+      .map(e => `- ${e.description} (Balance: ${e.balanceChange >= 0 ? '+' : ''}₹${e.balanceChange}, Risk: ${e.riskChange >= 0 ? '+' : ''}${e.riskChange})`)
+      .join('\n');
+    
+    const currentMonthChoices = history
+      .filter(e => e.type === 'choice' && e.month === gameState.month)
+      .map(e => `- ${e.description} (Balance: ${e.balanceChange >= 0 ? '+' : ''}₹${e.balanceChange}, Risk: ${e.riskChange >= 0 ? '+' : ''}${e.riskChange})`)
+      .join('\n');
+
     // Build context
     const context = `
-Current game state:
+CURRENT GAME STATE:
 - Month: ${gameState.month}
-- Balance: ₹${gameState.balance}
-- Savings: ₹${gameState.savings}
+- Current Balance: ₹${gameState.balance}
+- Current Savings: ₹${gameState.savings}
 - Risk Score: ${gameState.riskScore}/100
+- Insurance Status: ${gameState.insuranceOpted ? 'Active' : 'Not Active'}
 - Behavioral Profile: ${behaviorDesc}
 
-Generate 5 scenarios for Month ${gameState.month}. Based on the behavioral profile, adjust the difficulty and stakes of the scenarios slightly.`;
+${previousMonthChoices ? `PREVIOUS MONTH'S CHOICES (Month ${gameState.month - 1}):\n${previousMonthChoices}\n` : ''}
+${currentMonthChoices ? `CURRENT MONTH'S CHOICES SO FAR (Month ${gameState.month}):\n${currentMonthChoices}\n` : ''}
+
+INSTRUCTIONS:
+Generate 5 scenarios for Month ${gameState.month}. 
+- Consider their current financial state (balance: ₹${gameState.balance}, risk: ${gameState.riskScore}/100)
+- Reference or build upon their previous choices when relevant
+- Adjust difficulty based on their behavioral profile
+- Make scenarios feel like natural consequences or continuations of their financial journey`;
 
     const result = await ai.models.generateContent({
       model: 'gemini-robotics-er-1.5-preview',
