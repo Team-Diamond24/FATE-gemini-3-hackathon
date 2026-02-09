@@ -10,7 +10,9 @@ import {
     initializeModifiers,
     advanceScenarioIndex,
     isMonthComplete,
-    getCurrentScenario
+    getCurrentScenario,
+    depositToSavings as engineDepositToSavings,
+    withdrawFromSavings as engineWithdrawFromSavings
 } from '../engine/gameEngine'
 
 /**
@@ -108,6 +110,16 @@ function gameReducer(state, action) {
                 ...state,
                 insuranceOpted: action.payload ?? !state.insuranceOpted
             }
+        }
+
+        case 'DEPOSIT_TO_SAVINGS': {
+            // Deposit money from balance to savings
+            return engineDepositToSavings(state, action.payload)
+        }
+
+        case 'WITHDRAW_FROM_SAVINGS': {
+            // Withdraw money from savings to balance
+            return engineWithdrawFromSavings(state, action.payload)
         }
 
         case 'RESET':
@@ -263,6 +275,8 @@ export function useGame() {
         setBatch: (batch) => dispatch({ type: 'SET_BATCH', payload: batch }),
         applyBehavioralDecisions: (answers) => dispatch({ type: 'APPLY_BEHAVIORAL_DECISIONS', payload: answers }),
         updateInsurance: (opted) => dispatch({ type: 'UPDATE_INSURANCE', payload: opted }),
+        depositToSavings: (amount) => dispatch({ type: 'DEPOSIT_TO_SAVINGS', payload: amount }),
+        withdrawFromSavings: (amount) => dispatch({ type: 'WITHDRAW_FROM_SAVINGS', payload: amount }),
         reset: () => dispatch({ type: 'RESET' }),
         // Getters
         getCurrentScenario: () => getCurrentScenario(state.currentBatch),

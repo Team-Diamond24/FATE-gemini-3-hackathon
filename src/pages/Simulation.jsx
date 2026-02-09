@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useGame } from '../context/GameContext'
 import { fetchMonthlyScenarios } from '../services/api'
+import soundManager from '../utils/soundManager'
+import SoundButton from '../components/SoundButton'
 
 function SimulationContent() {
     const {
@@ -56,6 +58,15 @@ function SimulationContent() {
     const handleChoice = async (choice) => {
         setIsProcessing(true)
 
+        // Play sound based on balance change
+        if (choice.balanceChange > 0) {
+            soundManager.balanceIncrease()
+        } else if (choice.balanceChange < 0) {
+            soundManager.balanceDecrease()
+        } else {
+            soundManager.choiceMade()
+        }
+
         // Simulate small delay for UX
         await new Promise(resolve => setTimeout(resolve, 300))
 
@@ -84,6 +95,7 @@ function SimulationContent() {
             if (monthDone) {
                 // Month is complete - finalize and go to dashboard for reflection
                 finalizeMonth()
+                soundManager.monthComplete()
                 
                 // Navigate to dashboard to show month-end report
                 window.location.hash = '#/dashboard'
@@ -167,10 +179,11 @@ function SimulationContent() {
 
                     <div className="flex flex-wrap justify-center gap-4">
                         {scenario.choices && scenario.choices.map((choice) => (
-                            <button
+                            <SoundButton
                                 key={choice.id}
                                 onClick={() => handleChoice(choice)}
                                 disabled={isProcessing}
+                                soundType={choice.balanceChange > 0 ? 'success' : choice.balanceChange < 0 ? 'warning' : 'click'}
                                 className={`px-8 py-4 rounded-full border-2 border-white/30 font-mono text-sm tracking-wider transition-all
                   ${isProcessing
                                         ? 'opacity-50 cursor-not-allowed'
@@ -183,7 +196,7 @@ function SimulationContent() {
                                         ({choice.balanceChange > 0 ? '+' : ''}{choice.balanceChange})
                                     </span>
                                 )}
-                            </button>
+                            </SoundButton>
                         ))}
                     </div>
                 </div>

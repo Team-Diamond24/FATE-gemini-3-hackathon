@@ -6,6 +6,9 @@ import { getUserSession } from '../utils/session'
 import { fetchMonthlyScenarios, fetchMonthlyReflection, fetchDecisionQuestions } from '../services/api'
 import { getStrategyStatus } from '../engine/gameEngine'
 import DataManager from '../components/DataManager'
+import SoundButton from '../components/SoundButton'
+import SavingsManager from '../components/SavingsManager'
+import soundManager from '../utils/soundManager'
 
 // Adds a "VIEW DATA" button
 
@@ -303,7 +306,9 @@ function DashboardContent() {
         startNewMonth,
         setBatch,
         updateInsurance,
-        applyBehavioralDecisions
+        applyBehavioralDecisions,
+        depositToSavings,
+        withdrawFromSavings
     } = useGame()
 
     const [reflection, setReflection] = useState('')
@@ -430,18 +435,35 @@ function DashboardContent() {
                         <div className="font-mono text-2xl font-bold text-fate-orange">{String(state.month).padStart(2, '0')}</div>
                     </div>
 
+                    <SoundButton
+                        onClick={() => window.location.hash = '#/math-tools'}
+                        className="px-4 py-2 border border-fate-gray rounded font-mono text-xs text-fate-text hover:bg-fate-gray/50 transition-colors"
+                    >
+                        TOOLS
+                    </SoundButton>
+
+                    <SoundButton
+                        onClick={() => window.location.hash = '#/profile'}
+                        className="px-4 py-2 border border-fate-gray rounded font-mono text-xs text-fate-text hover:bg-fate-gray/50 transition-colors"
+                    >
+                        PROFILE
+                    </SoundButton>
+
                     <DataManager />
 
-                    <button
+                    <SoundButton
                         onClick={() => window.location.hash = '#/'}
                         className="px-4 py-2 border border-fate-gray rounded font-mono text-xs text-fate-text hover:bg-fate-gray/50 transition-colors"
                     >
                         HOME
-                    </button>
+                    </SoundButton>
 
-                    <button className="w-10 h-10 border border-fate-gray rounded flex items-center justify-center hover:bg-fate-gray/50 transition-colors">
+                    <SoundButton 
+                        onClick={() => window.location.hash = '#/settings'}
+                        className="w-10 h-10 border border-fate-gray rounded flex items-center justify-center hover:bg-fate-gray/50 transition-colors"
+                    >
                         <Settings size={18} className="text-fate-text" />
-                    </button>
+                    </SoundButton>
                 </div>
             </header>
 
@@ -573,6 +595,22 @@ function DashboardContent() {
                                     PURCHASE ₹200
                                 </motion.button>
                             )}
+                        </div>
+
+                        {/* Savings Manager */}
+                        <div className="mb-6">
+                            <SavingsManager
+                                balance={state.balance}
+                                savings={state.savings}
+                                onDeposit={(amount) => {
+                                    depositToSavings(amount)
+                                    soundManager.success()
+                                }}
+                                onWithdraw={(amount) => {
+                                    withdrawFromSavings(amount)
+                                    soundManager.success()
+                                }}
+                            />
                         </div>
 
                         {/* Quick Stats */}

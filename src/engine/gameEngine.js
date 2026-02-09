@@ -184,12 +184,55 @@ export function cloneState(state) {
 }
 
 /**
- * Gets the net worth (balance + savings)
+ * Deposits money from balance to savings
  * @param {GameState} state - Current game state
- * @returns {number} - Total net worth
+ * @param {number} amount - Amount to deposit
+ * @returns {GameState} - Updated game state
  */
-export function getNetWorth(state) {
-  return state.balance + state.savings;
+export function depositToSavings(state, amount) {
+  if (amount <= 0 || amount > state.balance) {
+    return state; // Invalid amount
+  }
+
+  return {
+    ...state,
+    balance: state.balance - amount,
+    savings: state.savings + amount,
+    history: [...state.history, {
+      type: 'savings',
+      month: state.month,
+      balanceChange: -amount,
+      savingsChange: amount,
+      description: `Deposited ₹${amount} to savings`,
+      timestamp: Date.now()
+    }]
+  };
+}
+
+/**
+ * Withdraws money from savings to balance
+ * @param {GameState} state - Current game state
+ * @param {number} amount - Amount to withdraw
+ * @returns {GameState} - Updated game state
+ */
+export function withdrawFromSavings(state, amount) {
+  if (amount <= 0 || amount > state.savings) {
+    return state; // Invalid amount
+  }
+
+  return {
+    ...state,
+    balance: state.balance + amount,
+    savings: state.savings - amount,
+    history: [...state.history, {
+      type: 'savings',
+      month: state.month,
+      balanceChange: amount,
+      savingsChange: -amount,
+      description: `Withdrew ₹${amount} from savings`,
+      timestamp: Date.now()
+    }]
+  };
 }
 
 /**
