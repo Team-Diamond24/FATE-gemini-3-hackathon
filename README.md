@@ -990,7 +990,7 @@ fate_api_key                 // Gemini API key (optional)
 **4. API Integration**
 ```javascript
 // Gemini API Configuration
-Model: gemini-robotics-er-1.5-preview
+Model: gemini-3-flash
 Temperature: 0.7 (creative but consistent)
 Max Tokens: 2048
 Response Format: JSON
@@ -1134,48 +1134,6 @@ const scenarios = await generateMonthlyScenarios(gameState)
 - Short, memorable, professional
 - Consistent per user
 - No confusing characters
-
----
-
-## 🔐 Security & Privacy
-
-- Firebase Authentication for secure login
-- API keys stored in environment variables
-- User data stored locally (localStorage)
-- No server-side storage
-- Export/import for data portability
-
----
-
-## 🐛 Troubleshooting
-
-### Gemini API Issues
-
-**Problem**: Scenarios not generating
-**Solution**: 
-1. Check API key in `.env`
-2. Verify API quota
-3. Check browser console for errors
-4. Fallback scenarios will be used automatically
-
-### Data Not Saving
-
-**Problem**: Progress lost on refresh
-**Solution**:
-1. Check browser console for persistence errors
-2. Verify localStorage is enabled
-3. Export data as backup
-4. Clear browser cache and reimport
-
-### Questions Not Showing A/B Options
-
-**Problem**: Questions display without choices
-**Solution**:
-1. Gemini prompt enforces format
-2. Parser handles multiple formats
-3. Fallback questions provided
-4. Check console for parsing errors
-
 ---
 
 ## Deployment
@@ -1263,11 +1221,6 @@ VITE_FIREBASE_APP_ID=your_app_id
 - Edge 90+
 - Mobile browsers (iOS Safari, Chrome Mobile)
 
-### Performance Metrics
-- First Contentful Paint: < 1.5s
-- Time to Interactive: < 3.5s
-- Lighthouse Score: 90+
-- Bundle Size: ~500KB (gzipped)
 
 ### API Requirements
 - Google Gemini API access
@@ -1330,7 +1283,7 @@ VITE_FIREBASE_APP_ID=your_app_id
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Gemini API Issues
 
