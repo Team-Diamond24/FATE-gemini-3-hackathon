@@ -1,43 +1,144 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Shield, User, Settings, Image, ChevronRight, Home, DollarSign, AlertTriangle, CheckCircle } from 'lucide-react'
+import { Shield, User, Settings, Image, ChevronRight, Home, DollarSign, AlertTriangle, CheckCircle, BookOpen } from 'lucide-react'
 import { useGame } from '../context/GameContext'
 import { getUserSession } from '../utils/session'
 import { fetchMonthlyScenarios, fetchMonthlyReflection, fetchDecisionQuestions } from '../services/api'
+import { getStrategyStatus } from '../engine/gameEngine'
 import DataManager from '../components/DataManager'
 
 // Adds a "VIEW DATA" button
 
-// Impact Log Item Component
+// Lesson Card Component - Educational reflection layout
+function LessonCard({ reflection }) {
+    // Parse the reflection into sections: [ANALYSIS], [THE LESSON], [STRATEGY]
+    const parseReflection = (text) => {
+        if (!text) return { analysis: '', lesson: '', strategy: '' }
+
+        const sections = {
+            analysis: '',
+            lesson: '',
+            strategy: ''
+        }
+
+        // Extract [ANALYSIS] section
+        const analysisMatch = text.match(/\[ANALYSIS\]([\s\S]*?)(?=\[THE LESSON\]|\[STRATEGY\]|$)/i)
+        if (analysisMatch) sections.analysis = analysisMatch[1].trim()
+
+        // Extract [THE LESSON] section
+        const lessonMatch = text.match(/\[THE LESSON\]([\s\S]*?)(?=\[STRATEGY\]|$)/i)
+        if (lessonMatch) sections.lesson = lessonMatch[1].trim()
+
+        // Extract [STRATEGY] section
+        const strategyMatch = text.match(/\[STRATEGY\]([\s\S]*?)$/i)
+        if (strategyMatch) sections.strategy = strategyMatch[1].trim()
+
+        // If no sections found, treat entire text as analysis (fallback for old format)
+        if (!sections.analysis && !sections.lesson && !sections.strategy) {
+            sections.analysis = text
+        }
+
+        return sections
+    }
+
+    const { analysis, lesson, strategy } = parseReflection(reflection)
+
+    return (
+        <div className="space-y-5">
+            {/* Analysis Section */}
+            {analysis && (
+                <div>
+                    <div className="flex items-center gap-2 mb-2">
+                        <div className="w-6 h-6 bg-fate-gray rounded flex items-center justify-center">
+                            <span className="text-sm">📊</span>
+                        </div>
+                        <span className="font-mono text-xs text-fate-text tracking-widest">
+                            ANALYSIS
+                        </span>
+                    </div>
+                    <p className="text-white leading-relaxed text-sm pl-8">
+                        {analysis}
+                    </p>
+                </div>
+            )}
+
+            {/* The Lesson Section - Highlighted for education */}
+            {lesson && (
+                <div className="bg-fate-orange/10 border border-fate-orange/30 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                        <div className="w-6 h-6 bg-fate-orange/20 rounded flex items-center justify-center">
+                            <BookOpen size={14} className="text-fate-orange" />
+                        </div>
+                        <span className="font-mono text-xs text-fate-orange tracking-widest">
+                            THE LESSON
+                        </span>
+                    </div>
+                    <p className="text-white leading-relaxed text-sm">
+                        {lesson}
+                    </p>
+                </div>
+            )}
+
+            {/* Strategy Section */}
+            {strategy && (
+                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                        <div className="w-6 h-6 bg-green-500/20 rounded flex items-center justify-center">
+                            <span className="text-sm">💡</span>
+                        </div>
+                        <span className="font-mono text-xs text-green-400 tracking-widest">
+                            PRO-TIP
+                        </span>
+                    </div>
+                    <p className="text-white leading-relaxed text-sm">
+                        {strategy}
+                    </p>
+                </div>
+            )}
+        </div>
+    )
+}
+
+// Impact Log Item Component - Enhanced with concept tags for educational tracking
 function ImpactLogItem({ log }) {
     const isSystem = log.type === 'system' || log.description?.toLowerCase().includes('tax') ||
         log.description?.toLowerCase().includes('deduction') ||
         log.description?.toLowerCase().includes('penalty')
 
     const isPositive = (log.amount || log.balanceChange || 0) > 0
+    const concept = log.concept // Financial concept tag
 
     return (
         <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
-            className={`flex items-center justify-between py-3 border-b border-fate-gray/30 ${isSystem ? 'bg-red-500/5' : ''
-                }`}
+            className={`flex flex-col py-3 border-b border-fate-gray/30 ${isSystem ? 'bg-red-500/5' : ''}`}
         >
-            <div className="flex items-center gap-3">
-                <span className={`text-xs font-mono ${isSystem ? 'text-red-400' : 'text-fate-text'}`}>
-                    {isSystem ? 'System:' : 'Choice:'}
-                </span>
-                <span className="text-sm text-white truncate max-w-[180px]">
-                    {log.description || log.narrative?.substring(0, 30) || 'Decision made'}
-                </span>
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 flex-1">
+                    <span className={`text-xs font-mono ${isSystem ? 'text-red-400' : 'text-fate-text'}`}>
+                        {isSystem ? 'System:' : 'Choice:'}
+                    </span>
+                    <span className="text-sm text-white truncate max-w-[140px]">
+                        {log.description || log.narrative?.substring(0, 30) || 'Decision made'}
+                    </span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className={`font-mono text-sm font-bold ${isPositive ? 'text-green-400' : 'text-fate-orange'}`}>
+                        {isPositive ? '+' : ''}{log.amount || log.balanceChange ? `₹${Math.abs(log.amount || log.balanceChange).toLocaleString()}` : ''}
+                    </span>
+                    <span className="text-lg">{log.icon || (isSystem ? '⚠️' : '📋')}</span>
+                </div>
             </div>
-            <div className="flex items-center gap-2">
-                <span className={`font-mono text-sm font-bold ${isPositive ? 'text-green-400' : 'text-fate-orange'
-                    }`}>
-                    {isPositive ? '+' : ''}{log.amount || log.balanceChange ? `₹${Math.abs(log.amount || log.balanceChange).toLocaleString()}` : ''}
-                </span>
-                <span className="text-lg">{log.icon || (isSystem ? '⚠️' : '📋')}</span>
-            </div>
+            {/* Concept Tag - Educational Label */}
+            {concept && (
+                <div className="mt-2 flex items-center gap-2">
+                    <BookOpen size={12} className="text-fate-orange" />
+                    <span className="text-xs font-mono px-2 py-0.5 rounded bg-fate-orange/20 text-fate-orange">
+                        {concept}
+                    </span>
+                </div>
+            )}
         </motion.div>
     )
 }
@@ -47,25 +148,25 @@ function SummaryPanel({ reflection, decisionQuestions, isLoading, onProceed, isP
     // Parse decision questions - improved parser
     const parseQuestions = (text) => {
         if (!text) return []
-        
+
         const questions = []
         const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0)
-        
+
         let i = 0
         while (i < lines.length) {
             const line = lines[i]
-            
+
             // Check if this is a question line (starts with number)
             if (/^\d+\./.test(line)) {
                 const question = { question: line, choices: [] }
                 i++
-                
+
                 // Look for A) and B) options
                 while (i < lines.length && /^[AB]\)/.test(lines[i])) {
                     question.choices.push(lines[i])
                     i++
                 }
-                
+
                 // Only add if we have both choices
                 if (question.choices.length === 2) {
                     questions.push(question)
@@ -74,7 +175,7 @@ function SummaryPanel({ reflection, decisionQuestions, isLoading, onProceed, isP
                 i++
             }
         }
-        
+
         return questions
     }
 
@@ -99,31 +200,20 @@ function SummaryPanel({ reflection, decisionQuestions, isLoading, onProceed, isP
                 </div>
             </motion.div>
 
-            {/* Monthly Reflection */}
+            {/* Monthly Reflection - Lesson Card Layout */}
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
                 className="bg-fate-card border border-fate-gray/30 rounded-xl p-6 mb-6"
             >
-                <div className="flex items-center gap-2 mb-4">
-                    <div className="w-8 h-8 bg-fate-orange/20 rounded flex items-center justify-center">
-                        <span className="text-fate-orange">📊</span>
-                    </div>
-                    <span className="font-mono text-sm text-fate-text tracking-widest">
-                        MONTHLY ANALYSIS
-                    </span>
-                </div>
-                
                 {isLoading ? (
                     <div className="flex items-center gap-3 text-fate-muted py-8">
                         <div className="w-5 h-5 border-2 border-fate-orange border-t-transparent rounded-full animate-spin" />
-                        <span className="font-mono text-sm">Analyzing your financial decisions...</span>
+                        <span className="font-mono text-sm">Your Financial Mentor is analyzing your decisions...</span>
                     </div>
                 ) : (
-                    <div className="text-white leading-relaxed whitespace-pre-line text-base">
-                        {reflection || 'Your financial decisions this month have shaped your path.'}
-                    </div>
+                    <LessonCard reflection={reflection} />
                 )}
             </motion.div>
 
@@ -143,7 +233,7 @@ function SummaryPanel({ reflection, decisionQuestions, isLoading, onProceed, isP
                             NEXT MONTH'S STRATEGY
                         </span>
                     </div>
-                    
+
                     <div className="space-y-6">
                         {questions.map((q, idx) => (
                             <div key={idx} className="pb-6 border-b border-fate-gray/30 last:border-0 last:pb-0">
@@ -157,11 +247,10 @@ function SummaryPanel({ reflection, decisionQuestions, isLoading, onProceed, isP
                                                 key={cIdx}
                                                 whileTap={{ scale: 0.98 }}
                                                 onClick={() => onAnswerSelect(idx, answer)}
-                                                className={`px-4 py-3 rounded-lg font-mono text-sm transition-all ${
-                                                    isSelected
-                                                        ? 'bg-fate-orange text-black shadow-lg'
-                                                        : 'bg-fate-gray text-white hover:bg-fate-gray/70 border border-fate-gray'
-                                                }`}
+                                                className={`px-4 py-3 rounded-lg font-mono text-sm transition-all ${isSelected
+                                                    ? 'bg-fate-orange text-black shadow-lg'
+                                                    : 'bg-fate-gray text-white hover:bg-fate-gray/70 border border-fate-gray'
+                                                    }`}
                                             >
                                                 {choice}
                                             </motion.button>
@@ -238,7 +327,7 @@ function DashboardContent() {
             // Generate reflection based on user's choices this month
             const reflectionText = await fetchMonthlyReflection(state)
             setReflection(reflectionText)
-            
+
             // Generate decision questions based on reflection
             const questions = await fetchDecisionQuestions(state, reflectionText)
             setDecisionQuestions(questions)
@@ -334,22 +423,22 @@ function DashboardContent() {
                         <span className="font-mono text-xs text-fate-muted ml-2">// DASHBOARD</span>
                     </div>
                 </div>
-                
+
                 <div className="flex items-center gap-3">
                     <div className="text-right mr-4">
                         <div className="font-mono text-xs text-fate-text">MONTH</div>
                         <div className="font-mono text-2xl font-bold text-fate-orange">{String(state.month).padStart(2, '0')}</div>
                     </div>
-                    
+
                     <DataManager />
-                    
-                    <button 
+
+                    <button
                         onClick={() => window.location.hash = '#/'}
                         className="px-4 py-2 border border-fate-gray rounded font-mono text-xs text-fate-text hover:bg-fate-gray/50 transition-colors"
                     >
                         HOME
                     </button>
-                    
+
                     <button className="w-10 h-10 border border-fate-gray rounded flex items-center justify-center hover:bg-fate-gray/50 transition-colors">
                         <Settings size={18} className="text-fate-text" />
                     </button>
@@ -436,6 +525,31 @@ function DashboardContent() {
                             </div>
                         </div>
 
+                        {/* Strategy Status Card */}
+                        {(() => {
+                            const strategyStatus = getStrategyStatus(state.modifiers)
+                            const colorMap = {
+                                red: 'bg-red-500/20 text-red-400 border-red-500/30',
+                                orange: 'bg-fate-orange/20 text-fate-orange border-fate-orange/30',
+                                yellow: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+                                green: 'bg-green-500/20 text-green-400 border-green-500/30',
+                                teal: 'bg-teal-500/20 text-teal-400 border-teal-500/30'
+                            }
+                            return (
+                                <div className={`rounded-lg p-4 mb-6 border ${colorMap[strategyStatus.color]}`}>
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="font-mono text-xs opacity-75">STRATEGY STATUS</span>
+                                    </div>
+                                    <div className="font-mono text-lg font-bold mb-1">
+                                        {strategyStatus.label}
+                                    </div>
+                                    <div className="font-mono text-xs opacity-75">
+                                        {strategyStatus.description}
+                                    </div>
+                                </div>
+                            )
+                        })()}
+
                         {/* Insurance Section */}
                         <div className="bg-fate-card border border-fate-gray/30 rounded-lg p-4 mb-6">
                             <div className="flex items-center justify-between mb-3">
@@ -443,11 +557,10 @@ function DashboardContent() {
                                     <Shield size={16} className="text-fate-text" />
                                     <span className="font-mono text-xs text-fate-text">INSURANCE</span>
                                 </div>
-                                <span className={`font-mono text-xs px-2 py-1 rounded ${
-                                    state.insuranceOpted 
-                                        ? 'bg-green-400/20 text-green-400' 
-                                        : 'bg-fate-gray text-fate-muted'
-                                }`}>
+                                <span className={`font-mono text-xs px-2 py-1 rounded ${state.insuranceOpted
+                                    ? 'bg-green-400/20 text-green-400'
+                                    : 'bg-fate-gray text-fate-muted'
+                                    }`}>
                                     {state.insuranceOpted ? 'ACTIVE' : 'INACTIVE'}
                                 </span>
                             </div>
@@ -483,7 +596,7 @@ function DashboardContent() {
                             MONTH {String(state.month).padStart(2, '0')} SUMMARY
                         </span>
                     </div>
-                    
+
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
                         <SummaryPanel
                             reflection={reflection}
@@ -509,7 +622,7 @@ function DashboardContent() {
                             IMPACT LOGS
                         </span>
                     </div>
-                    
+
                     <div className="flex-1 overflow-y-auto px-6 py-4 custom-scrollbar">
                         {state.history.length === 0 ? (
                             <div className="text-center py-12 text-fate-muted">
@@ -525,7 +638,7 @@ function DashboardContent() {
                             </div>
                         )}
                     </div>
-                    
+
                     <div className="flex-none p-4 border-t border-fate-gray/30">
                         <motion.button
                             whileTap={{ scale: 0.98 }}

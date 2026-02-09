@@ -25,10 +25,25 @@ const TAX_RATE = 0.20; // 20% flat tax
  * @property {MonthlyScenarioBatch|null} currentBatch - Current month's scenario batch
  * @property {string} userId - Unique identifier for the user
  * @property {Object} modifiers - Behavioral modifiers influencing gameplay
- * @property {number} modifiers.riskSensitivity - Multiplier for risk changes (default 1.0)
- * @property {number} modifiers.insuranceLikelihood - Weight for insurance offering (default 1.0)
- * @property {number} modifiers.difficultyModifier - Used during scenario generation (default 1.0)
+ * @property {number} modifiers.riskSensitivity - Multiplier for risk/reward magnitude (0.5-2.5)
+ * @property {number} modifiers.insuranceLikelihood - Weight for insurance offering (0.5-2.5)
+ * @property {number} modifiers.difficultyModifier - Frequency of complex scenarios (0.5-2.5)
+ * @property {number} modifiers.marketVolatility - Economic volatility affecting balance changes (0.5-2.5)
+ * @property {number} modifiers.strategyMomentum - Cumulative effect from monthly strategy choices (-1.0 to 1.0)
  */
+
+// Modifier clamping constants
+const MODIFIER_MIN = 0.5;
+const MODIFIER_MAX = 2.5;
+const MOMENTUM_MIN = -1.0;
+const MOMENTUM_MAX = 1.0;
+
+/**
+ * Clamp a value between min and max
+ */
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
 
 /**
  * Creates a new game state with sensible defaults
@@ -49,6 +64,8 @@ export function initializeGameState(userId = 'default_user') {
       riskSensitivity: 1.0,
       insuranceLikelihood: 1.0,
       difficultyModifier: 1.0,
+      marketVolatility: 1.0,
+      strategyMomentum: 0.0  // Neutral starting point
     }
   };
 }
@@ -104,6 +121,7 @@ export function applyIncome(state, income = DEFAULT_MONTHLY_INCOME) {
  * @property {number} riskChange - Amount to add/subtract from riskScore
  * @property {string} [description] - Optional description of the choice
  * @property {boolean} [isInsurance] - Whether this choice triggers insurance mechanic
+ * @property {string} [concept] - Financial concept being taught (e.g., "Tax Optimization", "Emergency Fund", "Debt Management")
  */
 
 /**
@@ -113,7 +131,7 @@ export function applyIncome(state, income = DEFAULT_MONTHLY_INCOME) {
  * @returns {GameState} - Updated game state
  */
 export function applyChoice(state, choice) {
-  const { balanceChange, savingsChange = 0, riskChange, description = '', isInsurance = false } = choice;
+  const { balanceChange, savingsChange = 0, riskChange, description = '', isInsurance = false, concept = null } = choice;
 
   // Calculate new balance, prevent going below zero
   const newBalance = Math.max(0, state.balance + balanceChange);
@@ -127,7 +145,7 @@ export function applyChoice(state, choice) {
   // Update insurance status if this choice is for insurance
   const newInsuranceOpted = state.insuranceOpted || isInsurance;
 
-  // Create history entry for this choice
+  // Create history entry for this choice - includes concept for educational tracking
   const historyEntry = {
     type: 'choice',
     month: state.month,
@@ -135,6 +153,7 @@ export function applyChoice(state, choice) {
     savingsChange,
     riskChange,
     description,
+    concept,  // Track the financial concept being taught
     timestamp: Date.now(),
   };
 
@@ -252,52 +271,184 @@ export function isMonthComplete(batch) {
 // ============================================
 
 /**
- * Applies the impact of behavioral decisions to the game state modifiers
+ * Initializes modifiers based on initial preferences (sets the floor/ceiling for the game)
+ * Called ONCE during PreferencesSetup to calibrate the game difficulty
+ * @param {GameState} state - Current game state
+ * @param {Object} preferences - User preferences from setup
+ * @param {string} preferences.primaryDrive - 'security', 'growth', or 'experience'
+ * @param {string} preferences.riskLevel - 'low', 'medium', or 'high'
+ * @returns {GameState} - Updated game state with calibrated modifiers
+ */
+export function initializeModifiers(state, preferences) {
+  const { primaryDrive, riskLevel } = preferences;
+
+  // Base modifiers
+  const modifiers = {
+    riskSensitivity: 1.0,
+    insuranceLikelihood: 1.0,
+    difficultyModifier: 1.0,
+    marketVolatility: 1.0,
+    strategyMomentum: 0.0
+  };
+
+  // Primary Drive calibration - sets baseline personality
+  switch (primaryDrive) {
+    case 'security':
+      modifiers.riskSensitivity = 0.7;      // Lower risk exposure
+      modifiers.insuranceLikelihood = 1.5;  // More insurance prompts
+      modifiers.marketVolatility = 0.8;     // Calmer market
+      modifiers.difficultyModifier = 0.8;   // Easier scenarios
+      break;
+    case 'growth':
+      modifiers.riskSensitivity = 1.3;      // Higher risk exposure
+      modifiers.insuranceLikelihood = 0.8;  // Fewer insurance prompts
+      modifiers.marketVolatility = 1.2;     // More volatile market
+      modifiers.difficultyModifier = 1.2;   // Harder scenarios
+      break;
+    case 'experience':
+      modifiers.riskSensitivity = 1.0;      // Balanced
+      modifiers.insuranceLikelihood = 1.0;
+      modifiers.marketVolatility = 1.0;
+      modifiers.difficultyModifier = 1.0;
+      break;
+  }
+
+  // Risk Level calibration - adjusts the volatility floor/ceiling
+  switch (riskLevel) {
+    case 'low':
+      modifiers.riskSensitivity -= 0.2;
+      modifiers.marketVolatility -= 0.2;
+      modifiers.difficultyModifier -= 0.1;
+      break;
+    case 'medium':
+      // No adjustment - balanced
+      break;
+    case 'high':
+      modifiers.riskSensitivity += 0.3;
+      modifiers.marketVolatility += 0.3;
+      modifiers.difficultyModifier += 0.2;
+      break;
+  }
+
+  // Clamp all modifiers to valid ranges
+  modifiers.riskSensitivity = clamp(modifiers.riskSensitivity, MODIFIER_MIN, MODIFIER_MAX);
+  modifiers.insuranceLikelihood = clamp(modifiers.insuranceLikelihood, MODIFIER_MIN, MODIFIER_MAX);
+  modifiers.difficultyModifier = clamp(modifiers.difficultyModifier, MODIFIER_MIN, MODIFIER_MAX);
+  modifiers.marketVolatility = clamp(modifiers.marketVolatility, MODIFIER_MIN, MODIFIER_MAX);
+  modifiers.strategyMomentum = clamp(modifiers.strategyMomentum, MOMENTUM_MIN, MOMENTUM_MAX);
+
+  return {
+    ...state,
+    modifiers
+  };
+}
+
+/**
+ * Applies the impact of monthly strategy decisions (cumulative effects)
+ * Called each month based on "Next Month's Strategy" answers
  * @param {GameState} state - Current game state
  * @param {Array<string>} answers - Array of answers ('A' or 'B') for decision questions
- * @returns {GameState} - Updated game state with new modifiers
+ * @returns {GameState} - Updated game state with adjusted modifiers
  */
 export function applyBehavioralDecisions(state, answers) {
   if (!answers || !Array.isArray(answers)) return state;
 
-  const newModifiers = { ...state.modifiers || {
-    riskSensitivity: 1.0,
-    insuranceLikelihood: 1.0,
-    difficultyModifier: 1.0
-  }};
+  const newModifiers = {
+    ...state.modifiers || {
+      riskSensitivity: 1.0,
+      insuranceLikelihood: 1.0,
+      difficultyModifier: 1.0,
+      marketVolatility: 1.0,
+      strategyMomentum: 0.0
+    }
+  };
 
-  // Example mappings based on standard question themes
-  // Question 1: Stability (A: Flexible, B: Locked)
-  if (answers[0] === 'B') {
-    newModifiers.riskSensitivity -= 0.05;
-    newModifiers.difficultyModifier -= 0.05;
-  } else if (answers[0] === 'A') {
-    newModifiers.riskSensitivity += 0.05;
+  // Monthly strategy adjustments - smaller increments for gradual momentum
+  // Question 1: Stability vs Flexibility
+  // A = Conservative (steady), B = Flexible (adaptive)
+  if (answers[0] === 'A') {
+    newModifiers.riskSensitivity -= 0.03;
+    newModifiers.marketVolatility -= 0.02;
+    newModifiers.strategyMomentum -= 0.1;  // Trending conservative
+  } else if (answers[0] === 'B') {
+    newModifiers.riskSensitivity += 0.03;
+    newModifiers.marketVolatility += 0.02;
+    newModifiers.strategyMomentum += 0.1;  // Trending aggressive
   }
 
-  // Question 2: Protection (A: Luck, B: Covered)
-  if (answers[1] === 'B') {
-    newModifiers.insuranceLikelihood += 0.1;
-  } else if (answers[1] === 'A') {
+  // Question 2: Protection Strategy
+  // A = Self-reliance, B = Safety nets
+  if (answers[1] === 'A') {
     newModifiers.insuranceLikelihood -= 0.05;
+    newModifiers.difficultyModifier += 0.03;  // Harder without protection
+  } else if (answers[1] === 'B') {
+    newModifiers.insuranceLikelihood += 0.08;
+    newModifiers.difficultyModifier -= 0.02;  // Easier with safety nets
   }
 
-  // Question 3: Ambition (A: Steady, B: High Stakes)
-  if (answers[2] === 'B') {
-    newModifiers.difficultyModifier += 0.1;
+  // Question 3: Ambition Level
+  // A = Steady growth, B = High stakes
+  if (answers[2] === 'A') {
+    newModifiers.difficultyModifier -= 0.03;
+    newModifiers.marketVolatility -= 0.02;
+    newModifiers.strategyMomentum -= 0.05;
+  } else if (answers[2] === 'B') {
+    newModifiers.difficultyModifier += 0.08;
+    newModifiers.marketVolatility += 0.05;
     newModifiers.riskSensitivity += 0.05;
-  } else if (answers[2] === 'A') {
-    newModifiers.difficultyModifier -= 0.05;
-    newModifiers.riskSensitivity -= 0.05;
+    newModifiers.strategyMomentum += 0.15;  // Strong aggressive signal
   }
 
-  // Clamp modifiers to reasonable ranges
-  newModifiers.riskSensitivity = Math.max(0.5, Math.min(2.0, newModifiers.riskSensitivity));
-  newModifiers.insuranceLikelihood = Math.max(0.1, Math.min(2.0, newModifiers.insuranceLikelihood));
-  newModifiers.difficultyModifier = Math.max(0.5, Math.min(2.0, newModifiers.difficultyModifier));
+  // Clamp all modifiers to valid ranges
+  newModifiers.riskSensitivity = clamp(newModifiers.riskSensitivity, MODIFIER_MIN, MODIFIER_MAX);
+  newModifiers.insuranceLikelihood = clamp(newModifiers.insuranceLikelihood, MODIFIER_MIN, MODIFIER_MAX);
+  newModifiers.difficultyModifier = clamp(newModifiers.difficultyModifier, MODIFIER_MIN, MODIFIER_MAX);
+  newModifiers.marketVolatility = clamp(newModifiers.marketVolatility, MODIFIER_MIN, MODIFIER_MAX);
+  newModifiers.strategyMomentum = clamp(newModifiers.strategyMomentum, MOMENTUM_MIN, MOMENTUM_MAX);
 
   return {
     ...state,
     modifiers: newModifiers
   };
+}
+
+/**
+ * Gets a human-readable strategy status based on current modifiers
+ * @param {Object} modifiers - Current game modifiers
+ * @returns {Object} - Strategy status with label and color
+ */
+export function getStrategyStatus(modifiers) {
+  if (!modifiers) return { label: 'Balanced', color: 'yellow' };
+
+  // Calculate overall aggression score based on modifiers
+  const aggressionScore =
+    (modifiers.riskSensitivity - 1.0) * 2 +
+    (modifiers.difficultyModifier - 1.0) * 1.5 +
+    (modifiers.marketVolatility - 1.0) * 1.5 +
+    (modifiers.strategyMomentum || 0);
+
+  if (aggressionScore > 0.8) {
+    return { label: 'Aggressive', color: 'red', description: 'High risk, high reward' };
+  } else if (aggressionScore > 0.3) {
+    return { label: 'Growth-focused', color: 'orange', description: 'Moderate risk appetite' };
+  } else if (aggressionScore < -0.8) {
+    return { label: 'Conservative', color: 'green', description: 'Safety first' };
+  } else if (aggressionScore < -0.3) {
+    return { label: 'Cautious', color: 'teal', description: 'Measured approach' };
+  } else {
+    return { label: 'Balanced', color: 'yellow', description: 'Steady progression' };
+  }
+}
+
+/**
+ * Applies market volatility to a balance change
+ * Higher volatility = larger swings in both directions
+ * @param {number} baseChange - Original balance change
+ * @param {number} volatility - Market volatility modifier
+ * @returns {number} - Adjusted balance change
+ */
+export function applyVolatility(baseChange, volatility = 1.0) {
+  // Volatility amplifies both gains and losses
+  const amplification = 0.5 + (volatility * 0.5); // 0.75x to 1.75x at extremes
+  return Math.round(baseChange * amplification);
 }

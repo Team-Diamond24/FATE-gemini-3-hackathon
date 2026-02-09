@@ -114,13 +114,18 @@ export default function PreferencesSetup() {
             const { userId } = getUserSession()
             savePreferences(userId, preferences)
 
-            // Apply behavioral decisions to game engine
-            const answers = mapPreferencesToAnswers(preferences)
-            dispatch({ type: 'APPLY_BEHAVIORAL_DECISIONS', payload: answers })
+            // Initialize modifiers based on preferences (sets floor/ceiling for the game)
+            dispatch({
+                type: 'INITIALIZE_MODIFIERS',
+                payload: {
+                    primaryDrive: preferences.primaryDrive,
+                    riskLevel: preferences.riskLevel
+                }
+            })
 
             // Start Month 1 and go directly to simulation
             dispatch({ type: 'START_NEW_MONTH', payload: { batch: null } })
-            
+
             // Redirect to simulation to start playing
             window.location.hash = '#/simulation'
         }

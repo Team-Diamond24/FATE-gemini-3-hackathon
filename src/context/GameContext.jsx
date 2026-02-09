@@ -7,6 +7,7 @@ import {
     applyIncome as engineApplyIncome,
     finalizeMonth as engineFinalizeMonth,
     applyBehavioralDecisions,
+    initializeModifiers,
     advanceScenarioIndex,
     isMonthComplete,
     getCurrentScenario
@@ -90,9 +91,15 @@ function gameReducer(state, action) {
         }
 
         case 'APPLY_BEHAVIORAL_DECISIONS': {
-            // Apply behavioral decisions from preferences setup
+            // Apply behavioral decisions from monthly strategy (cumulative effects)
             // action.payload should be an array of answers: ['A', 'B', 'A'] etc.
             return applyBehavioralDecisions(state, action.payload)
+        }
+
+        case 'INITIALIZE_MODIFIERS': {
+            // Initialize modifiers from initial preferences (floor/ceiling calibration)
+            // action.payload should be { primaryDrive: string, riskLevel: string }
+            return initializeModifiers(state, action.payload)
         }
 
         case 'UPDATE_INSURANCE': {
