@@ -46,28 +46,30 @@ export default function MathTools() {
             <div className="max-w-7xl mx-auto px-6 py-8">
                 <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
                     {/* Sidebar */}
-                    <aside className="space-y-2">
+                    <aside className="space-y-2 max-h-[calc(100vh-140px)] overflow-y-auto tools-scrollbar pr-2">
                         {tools.map((tool) => {
                             const Icon = tool.icon
                             return (
-                                <button
+                                <motion.button
                                     key={tool.id}
                                     onClick={() => setActiveTool(tool.id)}
-                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-mono text-sm transition-colors ${
+                                    whileHover={{ scale: 1.02, x: 4 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-mono text-sm transition-all ${
                                         activeTool === tool.id
-                                            ? 'bg-fate-orange text-black'
-                                            : 'bg-fate-card text-white hover:bg-fate-gray border border-fate-gray/30'
+                                            ? 'bg-fate-orange text-black shadow-lg shadow-fate-orange/20'
+                                            : 'bg-fate-card text-white hover:bg-fate-gray border border-fate-gray/30 hover:border-fate-orange/30'
                                     }`}
                                 >
                                     <Icon size={18} />
                                     {tool.label}
-                                </button>
+                                </motion.button>
                             )
                         })}
                     </aside>
 
                     {/* Calculator Content */}
-                    <main className="bg-fate-card border border-fate-gray/30 rounded-xl p-6">
+                    <main className="bg-fate-card border border-fate-gray/30 rounded-xl p-6 max-h-[calc(100vh-140px)] overflow-y-auto calculator-scrollbar">
                         {ActiveComponent && <ActiveComponent />}
                     </main>
                 </div>

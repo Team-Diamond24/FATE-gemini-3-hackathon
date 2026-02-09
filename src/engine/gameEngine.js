@@ -30,6 +30,10 @@ const TAX_RATE = 0.20; // 20% flat tax
  * @property {number} modifiers.difficultyModifier - Frequency of complex scenarios (0.5-2.5)
  * @property {number} modifiers.marketVolatility - Economic volatility affecting balance changes (0.5-2.5)
  * @property {number} modifiers.strategyMomentum - Cumulative effect from monthly strategy choices (-1.0 to 1.0)
+ * @property {Object} investments - Investment portfolio
+ * @property {Object} investments.insurance - Insurance details
+ * @property {Array} investments.fixedDeposits - Active fixed deposits
+ * @property {Array} investments.mutualFunds - Active mutual funds
  */
 
 // Modifier clamping constants
@@ -66,6 +70,11 @@ export function initializeGameState(userId = 'default_user') {
       difficultyModifier: 1.0,
       marketVolatility: 1.0,
       strategyMomentum: 0.0  // Neutral starting point
+    },
+    investments: {
+      insurance: { active: false, monthlyPremium: 0, coverage: 0 },
+      fixedDeposits: [],
+      mutualFunds: []
     }
   };
 }
@@ -494,4 +503,249 @@ export function applyVolatility(baseChange, volatility = 1.0) {
   // Volatility amplifies both gains and losses
   const amplification = 0.5 + (volatility * 0.5); // 0.75x to 1.75x at extremes
   return Math.round(baseChange * amplification);
+}
+
+// ============================================
+// INVESTMENT FUNCTIONS
+// ============================================
+
+/**
+ * Starts insurance with monthly premium deduction
+ * @param {GameState} state - Current game state
+ * @param {Object} insuranceData - Insurance details
+ * @returns {GameState} - Updated game state
+ */
+export function startInsurance(state, insuranceData) {
+  const { monthlyPremium, coverage } = insuranceData;
+
+  if (monthlyPremium > state.balance) {
+    return state; // Insufficient balance
+  }
+
+  return {
+    ...state,
+    balance: state.balance - monthlyPremium,
+    insuranceOpted: true,
+    investments: {
+      ...state.investments,
+      insurance: { active: true, monthlyPremium, coverage }
+    },
+    history: [...state.history, {
+      type: 'insurance',
+      month: state.month,
+      balanceChange: -monthlyPremium,
+      description: `Started insurance with ₹${monthlyPremium}/month premium`,
+      timestamp: Date.now()
+    }]
+  };
+}
+
+/**
+ * Cancels active insurance
+ * @param {GameState} state - Current game state
+ * @returns {GameState} - Updated game state
+ */
+export function cancelInsurance(state) {
+  return {
+    ...state,
+    insuranceOpted: false,
+    investments: {
+      ...state.investments,
+      insurance: { active: false, monthlyPremium: 0, coverage: 0 }
+    },
+    history: [...state.history, {
+      type: 'insurance',
+      month: state.month,
+      description: 'Cancelled insurance',
+      timestamp: Date.now()
+    }]
+  };
+}
+
+/**
+ * Deducts monthly insurance premium (called at month start)
+ * @param {GameState} state - Current game state
+ * @returns {GameState} - Updated game state
+ */
+export function deductInsurancePremium(state) {
+  if (!state.investments?.insurance?.active) {
+    return state;
+  }
+
+  const premium = state.investments.insurance.monthlyPremium;
+
+  if (premium > state.balance) {
+    // Auto-cancel if can't afford
+    return cancelInsurance(state);
+  }
+
+  return {
+    ...state,
+    balance: state.balance - premium,
+    history: [...state.history, {
+      type: 'insurance',
+      month: state.month,
+      balanceChange: -premium,
+      description: `Insurance premium deducted: ₹${premium}`,
+      timestamp: Date.now()
+    }]
+  };
+}
+
+/**
+ * Starts a fixed deposit
+ * @param {GameState} state - Current game state
+ * @param {Object} fdData - FD details
+ * @returns {GameState} - Updated game state
+ */
+export function startFixedDeposit(state, fdData) {
+  const { amount, tenure, source, interestRate } = fdData;
+
+  const availableAmount = source === 'savings' ? state.savings : state.balance;
+
+  if (amount > availableAmount) {
+    return state; // Insufficient funds
+  }
+
+  const maturityAmount = Math.round(amount * (1 + interestRate / 100 * tenure / 12));
+
+  const newFD = {
+    amount,
+    tenure,
+    remainingMonths: tenure,
+    interestRate,
+    maturityAmount,
+    startMonth: state.month,
+    source
+  };
+
+  const newState = {
+    ...state,
+    investments: {
+      ...state.investments,
+      fixedDeposits: [...state.investments.fixedDeposits, newFD]
+    },
+    history: [...state.history, {
+      type: 'investment',
+      month: state.month,
+      description: `Started FD: ₹${amount} for ${tenure} months`,
+      timestamp: Date.now()
+    }]
+  };
+
+  // Deduct from source
+  if (source === 'savings') {
+    newState.savings = state.savings - amount;
+  } else {
+    newState.balance = state.balance - amount;
+  }
+
+  return newState;
+}
+
+/**
+ * Starts a mutual fund investment
+ * @param {GameState} state - Current game state
+ * @param {Object} mfData - MF details
+ * @returns {GameState} - Updated game state
+ */
+export function startMutualFund(state, mfData) {
+  const { amount, type, source } = mfData;
+
+  const availableAmount = source === 'savings' ? state.savings : state.balance;
+
+  if (amount > availableAmount) {
+    return state; // Insufficient funds
+  }
+
+  const newMF = {
+    amount,
+    type,
+    currentValue: amount,
+    startMonth: state.month,
+    source
+  };
+
+  const newState = {
+    ...state,
+    investments: {
+      ...state.investments,
+      mutualFunds: [...state.investments.mutualFunds, newMF]
+    },
+    history: [...state.history, {
+      type: 'investment',
+      month: state.month,
+      description: `Invested ₹${amount} in ${type} mutual fund`,
+      timestamp: Date.now()
+    }]
+  };
+
+  // Deduct from source
+  if (source === 'savings') {
+    newState.savings = state.savings - amount;
+  } else {
+    newState.balance = state.balance - amount;
+  }
+
+  return newState;
+}
+
+/**
+ * Updates investment values at month end (FD maturity, MF returns)
+ * @param {GameState} state - Current game state
+ * @returns {GameState} - Updated game state
+ */
+export function updateInvestments(state) {
+  let newState = { ...state };
+  const newHistory = [...state.history];
+
+  // Update FDs
+  const updatedFDs = [];
+  state.investments.fixedDeposits.forEach(fd => {
+    const newRemainingMonths = fd.remainingMonths - 1;
+
+    if (newRemainingMonths <= 0) {
+      // FD matured - add to balance
+      newState.balance += fd.maturityAmount;
+      newHistory.push({
+        type: 'investment',
+        month: state.month,
+        balanceChange: fd.maturityAmount,
+        description: `FD matured: ₹${fd.maturityAmount} credited`,
+        timestamp: Date.now()
+      });
+    } else {
+      // FD still active
+      updatedFDs.push({ ...fd, remainingMonths: newRemainingMonths });
+    }
+  });
+
+  // Update MFs with market returns
+  const updatedMFs = state.investments.mutualFunds.map(mf => {
+    let returnRate = 0;
+    switch (mf.type) {
+      case 'equity':
+        returnRate = (Math.random() * 0.03 - 0.01); // -1% to +2% monthly
+        break;
+      case 'debt':
+        returnRate = (Math.random() * 0.01); // 0% to +1% monthly
+        break;
+      case 'hybrid':
+        returnRate = (Math.random() * 0.02 - 0.005); // -0.5% to +1.5% monthly
+        break;
+    }
+
+    const newValue = Math.round(mf.currentValue * (1 + returnRate));
+    return { ...mf, currentValue: newValue };
+  });
+
+  newState.investments = {
+    ...newState.investments,
+    fixedDeposits: updatedFDs,
+    mutualFunds: updatedMFs
+  };
+
+  newState.history = newHistory;
+
+  return newState;
 }

@@ -8,6 +8,7 @@ import { getStrategyStatus } from '../engine/gameEngine'
 import DataManager from '../components/DataManager'
 import SoundButton from '../components/SoundButton'
 import SavingsManager from '../components/SavingsManager'
+import InvestmentManager from '../components/InvestmentManager'
 import soundManager from '../utils/soundManager'
 
 // Adds a "VIEW DATA" button
@@ -308,7 +309,9 @@ function DashboardContent() {
         updateInsurance,
         applyBehavioralDecisions,
         depositToSavings,
-        withdrawFromSavings
+        withdrawFromSavings,
+        deductInsurancePremium,
+        updateInvestments
     } = useGame()
 
     const [reflection, setReflection] = useState('')
@@ -356,6 +359,12 @@ function DashboardContent() {
 
             // Apply income for new month
             applyIncome()
+
+            // Deduct insurance premium if active
+            deductInsurancePremium()
+
+            // Update investments (FD maturity, MF returns)
+            updateInvestments()
 
             // Fetch new scenarios for next month
             const newBatch = await fetchMonthlyScenarios(state)
@@ -613,6 +622,11 @@ function DashboardContent() {
                             />
                         </div>
 
+                        {/* Investment Manager */}
+                        <div className="mb-6">
+                            <InvestmentManager />
+                        </div>
+
                         {/* Quick Stats */}
                         <div className="space-y-2">
                             <div className="flex justify-between items-center py-2 border-b border-fate-gray/30">
@@ -620,8 +634,24 @@ function DashboardContent() {
                                 <span className="font-mono text-sm text-white">{state.history.length}</span>
                             </div>
                             <div className="flex justify-between items-center py-2 border-b border-fate-gray/30">
+                                <span className="font-mono text-xs text-fate-text">Investments</span>
+                                <span className="font-mono text-sm text-white">
+                                    ₹{(() => {
+                                        const fdTotal = (state.investments?.fixedDeposits || []).reduce((sum, fd) => sum + fd.amount, 0)
+                                        const mfTotal = (state.investments?.mutualFunds || []).reduce((sum, mf) => sum + mf.currentValue, 0)
+                                        return (fdTotal + mfTotal).toLocaleString()
+                                    })()}
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b border-fate-gray/30">
                                 <span className="font-mono text-xs text-fate-text">Net Worth</span>
-                                <span className="font-mono text-sm text-white">₹{(state.balance + state.savings).toLocaleString()}</span>
+                                <span className="font-mono text-sm text-white">
+                                    ₹{(() => {
+                                        const fdTotal = (state.investments?.fixedDeposits || []).reduce((sum, fd) => sum + fd.amount, 0)
+                                        const mfTotal = (state.investments?.mutualFunds || []).reduce((sum, mf) => sum + mf.currentValue, 0)
+                                        return (state.balance + state.savings + fdTotal + mfTotal).toLocaleString()
+                                    })()}
+                                </span>
                             </div>
                         </div>
                     </div>

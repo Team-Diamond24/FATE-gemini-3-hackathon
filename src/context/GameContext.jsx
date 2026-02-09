@@ -12,7 +12,13 @@ import {
     isMonthComplete,
     getCurrentScenario,
     depositToSavings as engineDepositToSavings,
-    withdrawFromSavings as engineWithdrawFromSavings
+    withdrawFromSavings as engineWithdrawFromSavings,
+    startInsurance as engineStartInsurance,
+    cancelInsurance as engineCancelInsurance,
+    deductInsurancePremium as engineDeductInsurancePremium,
+    startFixedDeposit as engineStartFixedDeposit,
+    startMutualFund as engineStartMutualFund,
+    updateInvestments as engineUpdateInvestments
 } from '../engine/gameEngine'
 
 /**
@@ -120,6 +126,36 @@ function gameReducer(state, action) {
         case 'WITHDRAW_FROM_SAVINGS': {
             // Withdraw money from savings to balance
             return engineWithdrawFromSavings(state, action.payload)
+        }
+
+        case 'START_INSURANCE': {
+            // Start insurance with monthly premium
+            return engineStartInsurance(state, action.payload)
+        }
+
+        case 'CANCEL_INSURANCE': {
+            // Cancel active insurance
+            return engineCancelInsurance(state)
+        }
+
+        case 'DEDUCT_INSURANCE_PREMIUM': {
+            // Deduct monthly insurance premium
+            return engineDeductInsurancePremium(state)
+        }
+
+        case 'START_FD': {
+            // Start a fixed deposit
+            return engineStartFixedDeposit(state, action.payload)
+        }
+
+        case 'START_MF': {
+            // Start a mutual fund investment
+            return engineStartMutualFund(state, action.payload)
+        }
+
+        case 'UPDATE_INVESTMENTS': {
+            // Update investment values (FD maturity, MF returns)
+            return engineUpdateInvestments(state)
         }
 
         case 'RESET':
@@ -277,6 +313,12 @@ export function useGame() {
         updateInsurance: (opted) => dispatch({ type: 'UPDATE_INSURANCE', payload: opted }),
         depositToSavings: (amount) => dispatch({ type: 'DEPOSIT_TO_SAVINGS', payload: amount }),
         withdrawFromSavings: (amount) => dispatch({ type: 'WITHDRAW_FROM_SAVINGS', payload: amount }),
+        startInsurance: (data) => dispatch({ type: 'START_INSURANCE', payload: data }),
+        cancelInsurance: () => dispatch({ type: 'CANCEL_INSURANCE' }),
+        deductInsurancePremium: () => dispatch({ type: 'DEDUCT_INSURANCE_PREMIUM' }),
+        startFD: (data) => dispatch({ type: 'START_FD', payload: data }),
+        startMF: (data) => dispatch({ type: 'START_MF', payload: data }),
+        updateInvestments: () => dispatch({ type: 'UPDATE_INVESTMENTS' }),
         reset: () => dispatch({ type: 'RESET' }),
         // Getters
         getCurrentScenario: () => getCurrentScenario(state.currentBatch),
