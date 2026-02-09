@@ -1,15 +1,16 @@
 // Session management utilities
+import { getShortUserId, generateShortUserId } from './userIdGenerator'
 
 /**
- * Generate a random guest ID
+ * Generate a random guest ID (short format)
  */
 function generateGuestId() {
-    return `guest-${Math.random().toString(36).substring(2, 10)}`
+    return generateShortUserId()
 }
 
 /**
  * Get or create user session
- * @returns {{ userId: string, isGuest: boolean }}
+ * @returns {{ userId: string, displayId: string, isGuest: boolean }}
  */
 export function getUserSession() {
     let userId = localStorage.getItem('fate_userId')
@@ -18,11 +19,20 @@ export function getUserSession() {
     if (!userId) {
         userId = generateGuestId()
         localStorage.setItem('fate_userId', userId)
+    } else if (!userId.startsWith('FATE-') && !userId.startsWith('guest-')) {
+        // Convert old Firebase UID to short ID
+        const shortId = getShortUserId(userId)
+        localStorage.setItem('fate_userId', shortId)
+        userId = shortId
+        isGuest = false
     } else if (!userId.startsWith('guest-')) {
         isGuest = false
     }
 
-    return { userId, isGuest }
+    // Display ID is always the short format
+    const displayId = userId.startsWith('FATE-') ? userId : userId.substring(0, 9)
+
+    return { userId, displayId, isGuest }
 }
 
 /**

@@ -1,15 +1,35 @@
 import { useState, useEffect } from 'react'
 import ProfileDropdown from './ProfileDropdown'
+import { loadUserData } from '../engine/persistence'
 
 export default function LandingPage({ onStart }) {
     const [isLoggedIn, setIsLoggedIn] = useState(false)
+    const [hasProgress, setHasProgress] = useState(false)
 
     useEffect(() => {
+        checkUserStatus()
+    }, [])
+
+    const checkUserStatus = async () => {
         // Check if user is logged in (has userId and username set)
         const userId = localStorage.getItem('fate_userId')
         const usernameSet = localStorage.getItem('fate_usernameSet')
-        setIsLoggedIn(!!userId && !!usernameSet)
-    }, [])
+        const loggedIn = !!userId && !!usernameSet
+        setIsLoggedIn(loggedIn)
+
+        // Check if user has game progress
+        if (userId) {
+            const gameData = await loadUserData(userId)
+            setHasProgress(gameData && gameData.month > 0)
+        }
+    }
+
+    const getButtonText = () => {
+        if (hasProgress) {
+            return 'CONTINUE YOUR JOURNEY'
+        }
+        return 'START YOUR FIRST MONTH'
+    }
 
     return (
         <div className="min-h-screen bg-black text-white">
@@ -72,7 +92,7 @@ export default function LandingPage({ onStart }) {
                     onClick={onStart}
                     className="bg-fate-orange text-black font-bold px-8 py-4 rounded text-sm tracking-wider hover:bg-fate-orange-light transition-all hover:scale-105"
                 >
-                    START YOUR FIRST MONTH
+                    {getButtonText()}
                 </button>
 
                 <p className="text-fate-muted text-sm mt-8 max-w-sm mx-auto">
@@ -168,7 +188,7 @@ export default function LandingPage({ onStart }) {
                         onClick={onStart}
                         className="bg-fate-orange text-black font-bold px-8 py-4 rounded text-sm tracking-wider hover:bg-fate-orange-light transition-all relative z-10"
                     >
-                        ENTER THE SIMULATOR
+                        {hasProgress ? 'CONTINUE SIMULATION' : 'ENTER THE SIMULATOR'}
                     </button>
                 </div>
             </section>
