@@ -7,22 +7,10 @@ export default defineConfig({
   server: {
     port: 3000,
     host: '0.0.0.0', // Listen on all addresses
-    // Configure HMR to work over HTTPS via ngrok
-    hmr: {
-      protocol: 'wss', // Use 'wss' for https tunnels
-      clientPort: 443, // Use port 443 for https
-    },
     // Allow ngrok and external connections
     cors: true,
-    proxy: {
-      // Add ngrok bypass header
-      '/': {
-        configure: (proxy, options) => {
-          proxy.on('proxyReq', (proxyReq, req, res) => {
-            proxyReq.setHeader('ngrok-skip-browser-warning', 'true')
-          })
-        }
-      }
+    headers: {
+      'ngrok-skip-browser-warning': 'true'
     }
   },
   preview: {
