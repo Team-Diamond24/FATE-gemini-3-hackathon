@@ -5,6 +5,7 @@
 
 import { GoogleGenAI } from '@google/genai';
 import { initializeMonthlyBatch } from './gameEngine.js';
+import apiKeyManager from '../utils/apiKeyManager.js';
 
 // ============================================
 // SYSTEM PROMPT
@@ -488,24 +489,11 @@ function getFallbackReflection(gameState) {
  * @returns {Promise<string>} - Generated analysis text
  */
 async function generateReflection(gameState, apiKey) {
-  // Use provided key or fallback to environment variable
-  let envKey;
-  try {
-    if (import.meta && import.meta.env) {
-      envKey = import.meta.env.VITE_GEMINI_API_KEY;
-    }
-  } catch (e) {
-    // Ignore
-  }
-
-  if (!envKey && typeof process !== 'undefined' && process.env) {
-    envKey = process.env.VITE_GEMINI_API_KEY;
-  }
-
-  const key = apiKey || envKey;
+  // Use API key manager if no specific key provided
+  const key = apiKey || apiKeyManager.getKeyForType('reflection');
 
   if (!key) {
-    console.warn('No API key provided for reflection generation');
+    console.warn('No API key available for reflection generation');
     return getFallbackReflection(gameState);
   }
 
@@ -517,7 +505,7 @@ async function generateReflection(gameState, apiKey) {
     const context = buildAnalysisContext(analysisData);
 
     const result = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.5-flash-lite',
       contents: [
         {
           role: 'user',
@@ -549,22 +537,11 @@ async function generateReflection(gameState, apiKey) {
  * @returns {Promise<string>} - Generated questions text
  */
 async function generateDecisionQuestions(gameState, analysisText, apiKey) {
-  // Use provided key or fallback to environment variable
-  let envKey;
-  try {
-    if (import.meta && import.meta.env) {
-      envKey = import.meta.env.VITE_GEMINI_API_KEY;
-    }
-  } catch (e) { }
-
-  if (!envKey && typeof process !== 'undefined' && process.env) {
-    envKey = process.env.VITE_GEMINI_API_KEY;
-  }
-
-  const key = apiKey || envKey;
+  // Use API key manager if no specific key provided
+  const key = apiKey || apiKeyManager.getKeyForType('questions');
 
   if (!key) {
-    console.warn('No API key provided for decision questions generation');
+    console.warn('No API key available for decision questions generation');
     return "Next month, do you want to:\nA) Save more\nB) Spend more"; // Very basic fallback
   }
 
@@ -576,7 +553,7 @@ async function generateDecisionQuestions(gameState, analysisText, apiKey) {
     const context = buildDecisionContext(contextData);
 
     const result = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.5-flash-lite',
       contents: [
         {
           role: 'user',
@@ -680,21 +657,8 @@ OUTPUT FORMAT (strict JSON only):
  * @returns {Promise<Object>} - MonthlyScenarioBatch object
  */
 async function generateMonthlyScenarios(gameState, apiKey) {
-  // Use provided key or fallback to environment variable
-  let envKey;
-  try {
-    if (import.meta && import.meta.env) {
-      envKey = import.meta.env.VITE_GEMINI_API_KEY;
-    }
-  } catch (e) {
-    // Ignore
-  }
-
-  if (!envKey && typeof process !== 'undefined' && process.env) {
-    envKey = process.env.VITE_GEMINI_API_KEY;
-  }
-
-  const key = apiKey || envKey;
+  // Use API key manager if no specific key provided
+  const key = apiKey || apiKeyManager.getKeyForType('scenario');
 
   // Helper to inject insurance
   const injectInsurance = (targetBatch) => {
@@ -705,7 +669,7 @@ async function generateMonthlyScenarios(gameState, apiKey) {
   };
 
   if (!key) {
-    console.warn('No API key provided for batch generation, using fallback');
+    console.warn('No API key available for batch generation, using fallback');
     return injectInsurance(getFallbackBatch(gameState.month));
   }
 
@@ -804,7 +768,7 @@ Generate 5 scenarios for Month ${gameState.month}.
 - Follow the narrative directives above closely`;
 
     const result = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.5-flash-lite',
       contents: [
         {
           role: 'user',

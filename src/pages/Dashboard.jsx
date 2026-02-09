@@ -54,7 +54,7 @@ function LessonCard({ reflection }) {
                 <div>
                     <div className="flex items-center gap-2 mb-2">
                         <div className="w-6 h-6 bg-fate-gray rounded flex items-center justify-center">
-                            <span className="text-sm">📊</span>
+                            <span className="text-sm"></span>
                         </div>
                         <span className="font-mono text-xs text-fate-text tracking-widest">
                             ANALYSIS
@@ -88,7 +88,7 @@ function LessonCard({ reflection }) {
                 <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
                         <div className="w-6 h-6 bg-green-500/20 rounded flex items-center justify-center">
-                            <span className="text-sm">💡</span>
+                            <span className="text-sm"></span>
                         </div>
                         <span className="font-mono text-xs text-green-400 tracking-widest">
                             PRO-TIP

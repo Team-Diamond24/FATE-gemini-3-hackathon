@@ -201,7 +201,7 @@ export default function SavingsManager({ balance, savings, onDeposit, onWithdraw
                                     type="button"
                                     className="w-full bg-fate-orange text-black font-bold py-3 rounded-lg hover:bg-fate-orange-light transition-colors font-mono"
                                 >
-                                    {mode === 'deposit' ? '💰 Deposit to Savings' : '💵 Withdraw from Savings'}
+                                    {mode === 'deposit' ? 'Deposit to Savings' : 'Withdraw from Savings'}
                                 </SoundButton>
 
                                 {/* Info */}
